@@ -1,4 +1,4 @@
-package com.openbean.bd.unsupervisedlearning
+package com.openbean.bd.unsupervisedlearning.supporting
 
 trait Dimension {
   val name : String

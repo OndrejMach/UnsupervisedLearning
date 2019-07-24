@@ -1,11 +1,12 @@
 package com.openbean.bd.unsupervisedlearning
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, ContractKPIsColumns, Logger, UsageKPIsColumns}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 //"/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/flowgraph_20190205-0000_20190211-0000__cust_exp_weekly_aggregations"
 class DataReader(implicit spark: SparkSession) extends Logger {
   def readData(filename: String) : DataFrame = {
-    val data =spark
+    spark
       .read
       .parquet(filename)
       .withColumn(ContractKPIsColumns.clv_agg.toString,
@@ -24,10 +25,10 @@ class DataReader(implicit spark: SparkSession) extends Logger {
       .withColumn(UsageKPIsColumns.data_volume_sum.toString, col(UsageKPIsColumns.data_volume_sum.toString)/1024/1024/1024)
       .withColumn(UsageKPIsColumns.data_sessions.toString, col(UsageKPIsColumns.data_sessions.toString)/1024)
 
-    data.printSchema()
+    //data.printSchema()
 
-    data.select(CXKPIsColumns.avg_thp_dl_mbps.toString).distinct().show()
+    //data.select(CXKPIsColumns.avg_thp_dl_mbps.toString).distinct().show()
 
-    data
+    //data
   }
 }

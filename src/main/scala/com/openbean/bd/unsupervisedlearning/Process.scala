@@ -1,33 +1,34 @@
 package com.openbean.bd.unsupervisedlearning
 import java.io._
 
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsModel, ContractKPIsColumns, ContractKPIsModel, Dimension, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsModel}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 
-class Process(data: DataFrame) extends Logger {
+class Process(dataReader: DataReader) extends Logger {
 
 
-  val (cpxDataVectorised, contractKPIVectorised, usageKPIDataVectorised) = getDataVectorised(data)
-
-  val allFields = CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols
-  val allVectorised = Clustering.vectorise(data, allFields)
-
-  def getDataVectorised(data: DataFrame) : (DataFrame,DataFrame,DataFrame) = {
+  def getDataVectorised3D(data: DataFrame) : (DataFrame,DataFrame,DataFrame) = {
     (Clustering.vectorise(Clustering.oneHot(data,ContractKPIsColumns.clv_agg.toString),CXKPIsModel.getModelCols),
       Clustering.vectorise(data,ContractKPIsModel.getModelCols),
       Clustering.vectorise(data,UsageKPIsModel.getModelCols))
   }
 
+  private def doClustering(data: DataFrame, clusters: Int) = {
+    val model = Clustering.doKMeans(clusters, data)
+
+    val transformed = model.transform(data)
+
+    (model, transformed)
+  }
+
+
   private def doClustering3D(cpxData: DataFrame, contractData: DataFrame, usageData: DataFrame, clusters: Int) : Map[Dimension,(DataFrame, KMeansModel)] = {
-    val cpxClusterModel = Clustering.doKMeans(clusters,cpxData)
-    val contractKPIModel = Clustering.doKMeans(clusters,contractData)
-    val usageKPIModel = Clustering.doKMeans(clusters,usageData)
 
-
-    val usageKPIClusteredData = usageKPIModel.transform(usageData)
-    val cpxClusteredData = cpxClusterModel.transform(cpxData)
-    val contractKPIClusteredData = contractKPIModel.transform(contractData)
+    val (cpxClusterModel, cpxClusteredData) = doClustering(cpxData, clusters)
+    val (contractKPIModel,usageKPIClusteredData) = doClustering(contractData,clusters)
+    val (usageKPIModel,contractKPIClusteredData) = doClustering(usageData,clusters)
 
     Map(DimensionCPX -> (cpxClusteredData,cpxClusterModel ),
       DimensionContract -> (contractKPIClusteredData, contractKPIModel),
@@ -36,105 +37,69 @@ class Process(data: DataFrame) extends Logger {
 
   //outputFilenameStats - "/Users/ondrej.machacek/tmp/clustersStatsPCA.csv"
   //outputFilenameData  - "/Users/ondrej.machacek/tmp/clusterDetailsPCA.csv"
-  def doWithPCA(cpxDataVectorised: DataFrame, contractKPIVectorised : DataFrame, usageKPIDataVectorised : DataFrame, pcaVars: Map[Dimension, Int], clusters: Int, outputFilenameStats: String, outputFilenameData: String)(implicit spark: SparkSession) = {
+  //def doWithPCA(cpxDataVectorised: DataFrame, contractKPIVectorised : DataFrame, usageKPIDataVectorised : DataFrame, pcaVars: Map[Dimension, Int], clusters: Int, outputFilenameStats: String, outputFilenameData: String)(implicit spark: SparkSession) = {
 
+  /*def doWithPCA(cpxDataVectorised: DataFrame, contractKPIVectorised : DataFrame, usageKPIDataVectorised : DataFrame, pcaVars: Map[Dimension, Int], clusters: Int)(implicit spark: SparkSession) = {
     def columns(dim: Dimension) : Array[String] = {
       (1 to pcaVars(dim)).map(_.toString()).toArray
     }
 
-    val cpxData = PCAHelper.getPCA(pcaVars(DimensionCPX.name),cpxDataVectorised)
-    val usageData = PCAHelper.getPCA(pcaVars(DimensionUsage.name),usageKPIDataVectorised)
-    val contractData = PCAHelper.getPCA(pcaVars(DimensionContract.name),contractKPIVectorised)
+    val cpxData = PCAHelper.getPCA(pcaVars(DimensionCPX),cpxDataVectorised)
+    val usageData = PCAHelper.getPCA(pcaVars(DimensionUsage),usageKPIDataVectorised)
+    val contractData = PCAHelper.getPCA(pcaVars(DimensionContract),contractKPIVectorised)
 
-    val dataClustered = doClustering3D(cpxData,contractData,usageData, 5  )
+    doWithoutPCA(cpxData,contractData,usageData,clusters,columns(DimensionCPX), columns(DimensionUsage), columns(DimensionContract) )
+  }*/
 
-    ResultWriter.writeClusterStats(dataClustered, columns(DimensionCPX), columns(DimensionUsage), columns(DimensionContract), outputFilenameStats)
+  def do3D(cpxDataVectorised: DataFrame, contractKPIVectorised : DataFrame, usageKPIDataVectorised : DataFrame,
+                   clusters: Int, //outputFilenameStats: String, outputFilenameData: String,
+                   cpxCols:Array[String] = CXKPIsModel.getModelCols, usageCols: Array[String] = UsageKPIsModel.getModelCols, contractCols:Array[String] = ContractKPIsModel.getModelCols)(implicit spark: SparkSession) = {
 
-    ResultWriter.writeClustersData(cpxClusteredData,
-      usageKPIClusteredData,
-      contractKPIClusteredData, outputFilenameData
-    )
+
+
+    //val dataClustered = doClustering3D(cpxDataVectorised,contractKPIVectorised,usageKPIDataVectorised,clusters   )
+    doClustering3D(cpxDataVectorised,contractKPIVectorised,usageKPIDataVectorised,clusters   )
+
+    //ResultWriter.writeClusterStats3D(dataClustered, cpxCols, usageCols, contractCols, outputFilenameStats)
+
+    //ResultWriter.writeClustersData(dataClustered(DimensionCPX)._1,
+    //  dataClustered(DimensionUsage)._1,
+    //  dataClustered(DimensionContract)._1, outputFilenameData
+   // )
   }
 
-  def doWithoutPCA() = {
-
-
-
-
-    val cpxClusterModel = Clustering.doKMeans(5,cpxDataVectorised)
-    val contractKPIModel = Clustering.doKMeans(5,contractKPIVectorised)
-    val usageKPIModel = Clustering.doKMeans(5,usageKPIDataVectorised)
-
-
-    val usageKPIClusteredData = usageKPIModel.transform(usageKPIDataVectorised)
-    val cpxClusteredData = cpxClusterModel.transform(cpxDataVectorised)
-    val contractKPIClusteredData = contractKPIModel.transform(contractKPIVectorised)
-
-    ResultWriter.writeClusterStats(cpxClusteredData,
-      usageKPIClusteredData,
-      contractKPIClusteredData,
-      cpxClusterModel,
-      usageKPIModel,
-      contractKPIModel,
-      CXKPIsModel.getModelCols,
-      UsageKPIsModel.getModelCols,
-      ContractKPIsModel.getModelCols,
-      "/Users/ondrej.machacek/tmp/clustersStatsNoPCA.csv")
-    ResultWriter.writeClustersData(cpxClusteredData,
-      usageKPIClusteredData,
-      contractKPIClusteredData,
-      "/Users/ondrej.machacek/tmp/clusterDetailsNoPCA.csv"
-    )
-  }
-
-  def doAllWithPCA() = {
+  /*def doAllWithPCA(data: DataFrame, clusters: Int, PCAvars: Int)(implicit spark: SparkSession) = {
     //option("header","true").mode(SaveMode.Overwrite).
 
-    val scaled = Clustering.scale(allVectorised)
+    //val scaled = Clustering.scale(allVectorised)
 
-    val cpaData = PCAHelper.getPCA(5,scaled)
+    val cpaData = PCAHelper.getPCA(PCAvars,data)
 
-    val model = Clustering.doKMeans(9,cpaData)
+    //val (model, transformed) =
+     doClustering(cpaData, clusters)
 
-    val transformed = model.transform(cpaData)
+    //val transformed = model.transform(cpaData)
 
-    val clusterStats = Clustering.getClusterStats(transformed,model.clusterCenters)
+    //ResultWriter.writeClusterStats(transformed,model,allFields,filename)
+  }*/
 
-    val pw = new PrintWriter(new File("/Users/ondrej.machacek/tmp/AllFieldsClusterStatsPCA.csv"))
-
-    pw.write(s"clusterID;cluster center (1,2,3,4,5); count;\n")
-
-    for (i <- 0 to (clusterStats.length-1) ) {
-      pw.write(s"${i};(${clusterStats(i).clusterCenter.toArray.mkString(",")});${clusterStats(i).count};\n")
-    }
-    pw.close
-
-    transformed
-
-
-  }
-
-  def doAllWithoutPCA() = {
+  def doAll(data: DataFrame, clusters: Int)(implicit spark: SparkSession) = {
     //option("header","true").mode(SaveMode.Overwrite).
 
-    val scaled = Clustering.scale(allVectorised)
+    doClustering(data, clusters)
 
-    val model = Clustering.doKMeans(9,scaled)
+    //ResultWriter.writeClusterStats(transformed,model,allFields,filename)
+  }
 
-    val transformed = model.transform(scaled)
+  def run()= {
 
-    val clusterStats = Clustering.getClusterStats(transformed,model.clusterCenters)
+    val data= dataReader.readData("/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/flowgraph_20190205-0000_20190211-0000__cust_exp_weekly_aggregations")
+    lazy val (cpxDataVectorised, contractKPIVectorised, usageKPIDataVectorised) = getDataVectorised3D(data)
 
-    val pw = new PrintWriter(new File("/Users/ondrej.machacek/tmp/AllFieldsClusterStatsNoPCA.csv"))
+    val allFields = CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols
+    lazy val allVectorised = Clustering.vectorise(data, allFields)
 
-    pw.write(s"clusterID;cluster center (${allFields.mkString(",")}); count;\n")
 
-    for (i <- 0 to (clusterStats.length-1) ) {
-      pw.write(s"${i};(${clusterStats(i).clusterCenter.toArray.mkString(",")});${clusterStats(i).count};\n")
-    }
-    pw.close
-
-    transformed
   }
 
 }

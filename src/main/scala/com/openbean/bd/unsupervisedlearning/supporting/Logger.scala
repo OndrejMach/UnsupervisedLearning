@@ -1,4 +1,4 @@
-package com.openbean.bd.unsupervisedlearning
+package com.openbean.bd.unsupervisedlearning.supporting
 
 import org.slf4j.LoggerFactory
 

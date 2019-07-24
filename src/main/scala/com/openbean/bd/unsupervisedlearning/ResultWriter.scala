@@ -2,7 +2,9 @@ package com.openbean.bd.unsupervisedlearning
 
 import java.io._
 
+import com.openbean.bd.unsupervisedlearning.supporting.{Dimension, DimensionCPX, DimensionContract, DimensionUsage, Logger}
 import org.apache.spark.ml.clustering.KMeansModel
+import org.apache.spark.ml.linalg.{DenseMatrix, DenseVector}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 //"/Users/ondrej.machacek/tmp/clustersStats.csv"
@@ -16,11 +18,20 @@ object ResultWriter extends Logger {
     }
   }
 
-  def writeClusterStats(clusterData: Map[Dimension,(DataFrame, KMeansModel)],
-                        columnsCpx: Array[String],
-                        columnsUsage: Array[String],
-                        columnsContract: Array[String],
-                        filename: String)(implicit spark: SparkSession) = {
+  def writeClusterStats(data: DataFrame, model: KMeansModel, columns: Array[String], filename: String)(implicit spark: SparkSession) = {
+    val stats = Clustering.getClusterStats(data,model.clusterCenters)
+
+    val pw = new PrintWriter(new File(filename))
+    pw.write(s"clusterID;${columns.mkString(",")}; count\n")
+    writeCSV(pw,stats )
+    pw.close()
+
+  }
+  def writeClusterStats3D(clusterData: Map[Dimension,(DataFrame, KMeansModel)],
+                          columnsCpx: Array[String],
+                          columnsUsage: Array[String],
+                          columnsContract: Array[String],
+                          filename: String)(implicit spark: SparkSession) = {
 
 
     val cpxClusterStats = Clustering.getClusterStats(clusterData(DimensionCPX)._1,clusterData(DimensionCPX)._2.clusterCenters)
@@ -28,20 +39,20 @@ object ResultWriter extends Logger {
     val contractClusterStats = Clustering.getClusterStats(clusterData(DimensionContract)._1,clusterData(DimensionContract)._2.clusterCenters)
 
     val pw = new PrintWriter(new File(filename))
-    pw.write(s"clusterID;cluster center CXKPIs (${columnsCpx.mkString(",")}); count\n")
+    pw.write(s"clusterID;${columnsCpx.mkString(",")}; count\n")
     writeCSV(pw,cpxClusterStats )
-    pw.write(s"cluster center UsageKPIs (${columnsUsage.mkString(",")});count\n")
+    pw.write(s"clusterID;${columnsUsage.mkString(",")};count\n")
     writeCSV(pw,usageClusterStats )
-    pw.write(s"cluster center ContractKPIs (${columnsContract.mkString(",")});count \n")
+    pw.write(s"clusterID;${columnsContract.mkString(",")};count \n")
     writeCSV(pw, contractClusterStats)
 
     pw.close
   }
 
-  def writeClustersData(cpxData: DataFrame,
-                        usageKPIData: DataFrame,
-                        contractData: DataFrame,
-                        filename: String) = {
+  def writeClustersData3D(cpxData: DataFrame,
+                          usageKPIData: DataFrame,
+                          contractData: DataFrame,
+                          filename: String) = {
 
     val toJoinU = usageKPIData
       .drop("features")
@@ -73,6 +84,12 @@ object ResultWriter extends Logger {
     //println(grouped.count)
 
     grouped.coalesce(1).write.option("header","true").mode(SaveMode.Overwrite).csv(filename)
+  }
+
+  def addPCAStats(explained: DenseVector, matrix: DenseMatrix, filename: String) = {
+    val pw = new PrintWriter(new File(filename))
+    pw.append(s"Explained variance:\n${explained}\nPC:\n${matrix}")
+    pw.close()
   }
 
 }

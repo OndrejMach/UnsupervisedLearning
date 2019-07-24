@@ -1,5 +1,6 @@
 package com.openbean.bd.unsupervisedlearning
 
+import com.openbean.bd.unsupervisedlearning.supporting.Logger
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.clustering.KMeans
 import org.apache.spark.ml.linalg.Vector
@@ -42,13 +43,8 @@ object Clustering extends Logger {
     val model = kmeans.fit(dataForClustering)
 
     val WSSSE = model.computeCost(dataForClustering)
-    println(s"Within Set Sum of Squared Errors = $WSSSE")
 
     model
-    //val withPrediction = model.transform(dataForClustering)
-
-    //withPrediction.printSchema()
-    //val cluster = model.clusterCenters
 
   }
 

@@ -1,5 +1,4 @@
-package com.openbean.bd.unsupervisedlearning
-
+package com.openbean.bd.unsupervisedlearning.supporting
 
 object CXKPIsColumns extends Enumeration {
   type CXKPIsColumns
