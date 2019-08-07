@@ -4,14 +4,18 @@ import java.io._
 import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsModel, ContractKPIsColumns, ContractKPIsModel, Dimension, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsModel}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.functions._
+import org.apache.spark.ml._
 
 
-class Process(dataReader: DataReader) extends Logger {
+case class Stat(mean: Double, stddev: Double)
+
+class Process(dataReader: DataReader)(implicit spark: SparkSession) extends Logger {
 
 
-  def getDataVectorised3D(data: DataFrame) : (DataFrame,DataFrame,DataFrame) = {
+  def getDataVectorised3D(data: DataFrame) : (DataFrame,DataFrame) = {
     (Clustering.vectorise(Clustering.oneHot(data,ContractKPIsColumns.clv_agg.toString),CXKPIsModel.getModelCols),
-      Clustering.vectorise(data,ContractKPIsModel.getModelCols),
+     // Clustering.vectorise(data,ContractKPIsModel.getModelCols),
       Clustering.vectorise(data,UsageKPIsModel.getModelCols))
   }
 
@@ -24,14 +28,14 @@ class Process(dataReader: DataReader) extends Logger {
   }
 
 
-  private def doClustering3D(cpxData: DataFrame, contractData: DataFrame, usageData: DataFrame, clusters: Int) : Map[Dimension,(DataFrame, KMeansModel)] = {
+  private def doClustering3D(cpxData: DataFrame, usageData: DataFrame, clusters: Int) : Map[Dimension,(DataFrame, KMeansModel)] = {
 
     val (cpxClusterModel, cpxClusteredData) = doClustering(cpxData, clusters)
-    val (contractKPIModel,usageKPIClusteredData) = doClustering(contractData,clusters)
-    val (usageKPIModel,contractKPIClusteredData) = doClustering(usageData,clusters)
+    //val (contractKPIModel,usageKPIClusteredData) = doClustering(contractData,clusters)
+    val (usageKPIModel,usageKPIClusteredData) = doClustering(usageData,clusters)
 
     Map(DimensionCPX -> (cpxClusteredData,cpxClusterModel ),
-      DimensionContract -> (contractKPIClusteredData, contractKPIModel),
+     // DimensionContract -> (contractKPIClusteredData, contractKPIModel),
       DimensionUsage -> (usageKPIClusteredData, usageKPIModel))
   }
 
@@ -51,14 +55,16 @@ class Process(dataReader: DataReader) extends Logger {
     doWithoutPCA(cpxData,contractData,usageData,clusters,columns(DimensionCPX), columns(DimensionUsage), columns(DimensionContract) )
   }*/
 
-  def do3D(cpxDataVectorised: DataFrame, contractKPIVectorised : DataFrame, usageKPIDataVectorised : DataFrame,
+  def do3D(cpxDataVectorised: DataFrame, usageKPIDataVectorised : DataFrame,
                    clusters: Int, //outputFilenameStats: String, outputFilenameData: String,
-                   cpxCols:Array[String] = CXKPIsModel.getModelCols, usageCols: Array[String] = UsageKPIsModel.getModelCols, contractCols:Array[String] = ContractKPIsModel.getModelCols)(implicit spark: SparkSession) = {
+                   cpxCols:Array[String] = CXKPIsModel.getModelCols,
+           usageCols: Array[String] = UsageKPIsModel.getModelCols)
+          (implicit spark: SparkSession) = {
 
 
 
     //val dataClustered = doClustering3D(cpxDataVectorised,contractKPIVectorised,usageKPIDataVectorised,clusters   )
-    doClustering3D(cpxDataVectorised,contractKPIVectorised,usageKPIDataVectorised,clusters   )
+    doClustering3D(cpxDataVectorised,usageKPIDataVectorised,clusters   )
 
     //ResultWriter.writeClusterStats3D(dataClustered, cpxCols, usageCols, contractCols, outputFilenameStats)
 
@@ -83,7 +89,7 @@ class Process(dataReader: DataReader) extends Logger {
     //ResultWriter.writeClusterStats(transformed,model,allFields,filename)
   }*/
 
-  def doAll(data: DataFrame, clusters: Int)(implicit spark: SparkSession) = {
+  def doAll(data: DataFrame, clusters: Int) = {
     //option("header","true").mode(SaveMode.Overwrite).
 
     doClustering(data, clusters)
@@ -91,13 +97,68 @@ class Process(dataReader: DataReader) extends Logger {
     //ResultWriter.writeClusterStats(transformed,model,allFields,filename)
   }
 
+  def filterOutliers(fields: Array[String], data: DataFrame): DataFrame = {
+
+    import spark.implicits._
+
+    var tmp = data
+    logger.info(s"With Outliers ${tmp.count()}")
+
+
+    for (i <- fields) {
+      logger.info(s"Outlier removal for ${i} count: ${tmp.count()}")
+      val stats = tmp.select(mean(i).alias("mean"), stddev_pop(i).alias("stddev")).as[Stat].collect()(0)
+      val min = stats.mean-50*stats.stddev
+      val max = stats.mean+50+stats.stddev
+      logger.info(s"${stats}")
+      tmp = tmp.filter(col(i).geq(lit(min)) && col(i).leq(lit(max)))
+      logger.info(s"Without outliers for ${i} count: ${tmp.count()}")
+    }
+    logger.info(s"After Outliers removal count ${tmp.count()}")
+    tmp
+  }
+
+
   def run()= {
-
-    val data= dataReader.readData("/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/flowgraph_20190205-0000_20190211-0000__cust_exp_weekly_aggregations")
-    lazy val (cpxDataVectorised, contractKPIVectorised, usageKPIDataVectorised) = getDataVectorised3D(data)
-
     val allFields = CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols
+
+    //println(s"${allFields(0)}:::${allFields.tail.mkString(",")}")
+
+    allFields.foreach(println(_))
+
+    val dataRaw= dataReader
+      .readData("/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/part-00000-892b3c0f-ad5f-4ab9-aaa9-3c668a3be26d-c000.snappy.parquet")
+      .select(allFields(0), allFields.tail :_*)
+
+    dataRaw.printSchema()
+
+    val data = filterOutliers(allFields, dataRaw)
+
+
+    lazy val (cpxDataVectorised, usageKPIDataVectorised) = getDataVectorised3D(data)
+
     lazy val allVectorised = Clustering.vectorise(data, allFields)
+
+
+    //println(data.select("cex_tel_per_call_avg").filter("cex_tel_per_call_avg is null").count())
+
+    data.summary().repartition(1).write.option("header", "true").csv("/Users/ondrej.machacek/tmp/AllDesc.csv")
+
+    val scaled = Clustering.scale(allVectorised).select("features")
+
+    //scaled.printSchema()
+
+    val vecToArray = udf( (xs: linalg.Vector) => xs.toArray )
+    val dfArr = scaled.withColumn("featuresArr" , vecToArray(col("features")) )
+
+    val sqlExpr = allFields.zipWithIndex.map{ case (alias, idx) => col("featuresArr").getItem(idx).as(alias) }
+
+    val scaledDF = dfArr.select(sqlExpr : _*)
+
+    scaledDF.summary().repartition(1).write.option("header", "true").csv("/Users/ondrej.machacek/tmp/AllDescScaled.csv")
+
+    //scaledDF.show(truncate = false)
+
 
 
   }

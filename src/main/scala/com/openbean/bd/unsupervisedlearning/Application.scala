@@ -24,7 +24,9 @@ object Application extends App with Logger {
 
   logger.info("Reading data")
   val reader = new DataReader()
-  val data = reader.readData(inputPath)
-  data.printSchema()
+  //val data = reader.readData(inputPath)
+  //data.printSchema()
+  val process = new Process(reader)
+  process.run()
 
 }

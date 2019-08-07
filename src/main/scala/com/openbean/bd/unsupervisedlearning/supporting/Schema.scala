@@ -56,6 +56,8 @@ object ContractKPIsColumns extends Enumeration {
   val magenta1 :ContractKPIsColumns.Value = Value("magenta1")
   val streaming_streamon :ContractKPIsColumns.Value = Value("streaming_streamon")
   val kuendigung3_12 :ContractKPIsColumns.Value = Value("kuendigung3_12")
+  val kuendigung3_12_3:ContractKPIsColumns.Value = Value("kuendigung3_12_3")
+  val kuendigung3_12_13:ContractKPIsColumns.Value = Value("kuendigung3_12_13")
   val morpu_avg :ContractKPIsColumns.Value = Value("morpu_avg")
   val clv123 :ContractKPIsColumns.Value = Value("clv123")
   val high_val_cust :ContractKPIsColumns.Value = Value("high_val_cust")
@@ -66,7 +68,9 @@ object ContractKPIsModel {
     //ContractKPIsColumns.clv_agg.toString,
     ContractKPIsColumns.magenta1.toString,
     ContractKPIsColumns.streaming_streamon.toString,
-    ContractKPIsColumns.kuendigung3_12.toString,
+    //ContractKPIsColumns.kuendigung3_12.toString,
+    ContractKPIsColumns.kuendigung3_12_3.toString,
+    ContractKPIsColumns.kuendigung3_12_13.toString,
     ContractKPIsColumns.morpu_avg.toString,
     ContractKPIsColumns.clv123.toString
     //ContractKPIsColumns.high_val_cust.toString
