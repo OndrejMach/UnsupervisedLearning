@@ -2,7 +2,7 @@ package com.openbean.bd.unsupervisedlearning
 
 import java.io._
 
-import com.openbean.bd.unsupervisedlearning.supporting.{Dimension, DimensionCPX, DimensionContract, DimensionUsage, Logger}
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsModel, Dimension, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsModel}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.ml.linalg.{DenseMatrix, DenseVector}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
@@ -30,21 +30,21 @@ object ResultWriter extends Logger {
   def writeClusterStats3D(clusterData: Map[Dimension,(DataFrame, KMeansModel)],
                           columnsCpx: Array[String],
                           columnsUsage: Array[String],
-                          columnsContract: Array[String],
+                          //columnsContract: Array[String],
                           filename: String)(implicit spark: SparkSession) = {
 
 
     val cpxClusterStats = Clustering.getClusterStats(clusterData(DimensionCPX)._1,clusterData(DimensionCPX)._2.clusterCenters)
     val usageClusterStats = Clustering.getClusterStats(clusterData(DimensionUsage)._1,clusterData(DimensionUsage)._2.clusterCenters)
-    val contractClusterStats = Clustering.getClusterStats(clusterData(DimensionContract)._1,clusterData(DimensionContract)._2.clusterCenters)
+    //val contractClusterStats = Clustering.getClusterStats(clusterData(DimensionContract)._1,clusterData(DimensionContract)._2.clusterCenters)
 
     val pw = new PrintWriter(new File(filename))
     pw.write(s"clusterID;${columnsCpx.mkString(",")}; count\n")
     writeCSV(pw,cpxClusterStats )
     pw.write(s"clusterID;${columnsUsage.mkString(",")};count\n")
     writeCSV(pw,usageClusterStats )
-    pw.write(s"clusterID;${columnsContract.mkString(",")};count \n")
-    writeCSV(pw, contractClusterStats)
+    //pw.write(s"clusterID;${columnsContract.mkString(",")};count \n")
+    //writeCSV(pw, contractClusterStats)
 
     pw.close
   }
@@ -90,6 +90,37 @@ object ResultWriter extends Logger {
     val pw = new PrintWriter(new File(filename))
     pw.append(s"Explained variance:\n${explained}\nPC:\n${matrix}")
     pw.close()
+  }
+
+  def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame, filenameSuffix: String): Unit = {
+
+    def aggregated(dim: Dimension, array: Array[String]) : DataFrame = {
+      dataClustered(dim)._1
+        .select("user_id", "prediction")
+        .join(dataRaw, "user_id")
+        .select("prediction", array: _*)
+        .groupBy("prediction").mean(array: _*)
+    }
+
+
+    val cpxData = aggregated(DimensionCPX, CXKPIsModel.getModelCols)
+    val usageData = aggregated(DimensionUsage, UsageKPIsModel.getModelCols)
+
+    cpxData
+      .coalesce(1)
+      .write
+      .option("header", "true")
+      .mode(SaveMode.Overwrite)
+      .csv(s"/Users/ondrej.machacek/tmp/CPXCluster${filenameSuffix}.csv")
+
+    usageData
+      .coalesce(1)
+      .write
+      .option("header", "true")
+      .mode(SaveMode.Overwrite)
+      .csv(s"/Users/ondrej.machacek/tmp/UsageCluster${filenameSuffix}.csv")
+
+
   }
 
 }

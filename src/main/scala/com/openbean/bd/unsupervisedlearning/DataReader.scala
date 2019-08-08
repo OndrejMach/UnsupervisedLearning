@@ -19,7 +19,7 @@ class DataReader(implicit spark: SparkSession) extends Logger {
           .otherwise(col(ContractKPIsColumns.clv_agg.toString)))
        .na.fill(0,CXKPIsModel.getModelCols.filter(_.contains("cex")))
 
-    rawData.columns.foreach(println(_))
+    //rawData.columns.foreach(println(_))
 
     val means = rawData
       .select(
@@ -31,7 +31,7 @@ class DataReader(implicit spark: SparkSession) extends Logger {
       )
       .as[Means].take(1)
 
-    println(means(0))
+    //println(means(0))
 
 
     val nafixed = rawData

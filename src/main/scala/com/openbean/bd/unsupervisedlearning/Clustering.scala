@@ -21,7 +21,7 @@ object Clustering extends Logger {
 
     val corrected = input.na.fill(0,valueColumns)
 
-    assembler.transform(corrected).drop("user_id")
+    assembler.transform(corrected)//.drop("user_id")
   }
 
   def oneHot(input: DataFrame, column: String) : DataFrame = {
@@ -43,10 +43,20 @@ object Clustering extends Logger {
     val model = kmeans.fit(dataForClustering)
 
     val WSSSE = model.computeCost(dataForClustering)
-
+    println(WSSSE)
     model
 
   }
+
+  def printCostAnalysis(lower: Int, upper: Int, data: DataFrame) : Unit = {
+
+    logger.info("Starting cost analysis")
+    for {i <- lower to upper } {
+      doKMeans(i, data)
+    }
+    logger.info("Cost analysis DONE")
+  }
+
 
   def getClusterStats(clusteredData : DataFrame, clusterCenters: Array[Vector])(implicit spark: SparkSession) : Seq[ClusterStats] = {
     case class Stats2(prediction: Int, count: Long)
