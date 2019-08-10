@@ -58,20 +58,20 @@ object Clustering extends Logger {
   }
 
 
-  def getClusterStats(clusteredData : DataFrame, clusterCenters: Array[Vector])(implicit spark: SparkSession) : Seq[ClusterStats] = {
-    case class Stats2(prediction: Int, count: Long)
+  def getClusterStats(clusteredData : DataFrame /*, clusterCenters: Array[Vector]*/) : DataFrame = {
+    //case class Stats2(prediction: Int, count: Long)
     //withPrediction.printSchema()
 
-    import spark.implicits._
+    //import spark.implicits._
 
-    val grouped = clusteredData
+    clusteredData
       .groupBy("prediction")
-      .count()
+      .count().alias("count")
       .orderBy(asc("prediction"))
-      .drop("prediction")
-      .as[Long]
-      .collect()
-    for {i <- 0 to (clusterCenters.length-1)} yield {new ClusterStats(i,clusterCenters(i), grouped(i))}
+      //.drop("prediction")
+      //.as[Long]
+      //.collect()
+    //for {i <- 0 to (clusterCenters.length-1)} yield {new ClusterStats(i,clusterCenters(i), grouped(i))}
   }
 
   def scale(data: DataFrame): DataFrame = {

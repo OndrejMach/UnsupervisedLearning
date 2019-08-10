@@ -2,7 +2,7 @@ package com.openbean.bd.unsupervisedlearning
 
 import java.io._
 
-import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, CXKPIsModel, ContractKPIsColumns, ContractKPIsModel, Dimension, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsColumns, UsageKPIsModel}
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, CXKPIsModel, ContractKPIsColumns, ContractKPIsModel, Dimension, DimensionAll, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsColumns, UsageKPIsModel}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
@@ -11,7 +11,7 @@ import org.apache.spark.ml._
 
 case class Stat(mean: Double, stddev: Double)
 
-class Process(dataReader: DataReader)(implicit spark: SparkSession) extends Logger {
+class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark: SparkSession) extends Logger {
 
 
   def getDataVectorised3D(data: DataFrame): (DataFrame, DataFrame) = {
@@ -40,6 +40,10 @@ class Process(dataReader: DataReader)(implicit spark: SparkSession) extends Logg
       DimensionUsage -> (usageKPIClusteredData, usageKPIModel))
   }
 
+  def doAllClustering(data: DataFrame, clusters: Int) : Map[Dimension, (DataFrame, KMeansModel)] = {
+    val (model,cluster) = doClustering(data, clusters)
+    Map(DimensionAll -> (cluster, model) )
+  }
 
   def do3D(cpxDataVectorised: DataFrame, usageKPIDataVectorised: DataFrame,
            clusters: Int, //outputFilenameStats: String, outputFilenameData: String,
@@ -51,14 +55,6 @@ class Process(dataReader: DataReader)(implicit spark: SparkSession) extends Logg
     //val dataClustered = doClustering3D(cpxDataVectorised,contractKPIVectorised,usageKPIDataVectorised,clusters   )
     doClustering3D(cpxDataVectorised, usageKPIDataVectorised, clusters)
 
-  }
-
-  def doAll(data: DataFrame, clusters: Int) = {
-    //option("header","true").mode(SaveMode.Overwrite).
-
-    doClustering(data, clusters)
-
-    //ResultWriter.writeClusterStats(transformed,model,allFields,filename)
   }
 
   def correctOutliers(fields: Array[String], data: DataFrame): DataFrame = {
@@ -95,76 +91,29 @@ class Process(dataReader: DataReader)(implicit spark: SparkSession) extends Logg
     tmp
   }
 
-  def writeSummaryRaw(data: DataFrame) = {
-    data.summary().repartition(1).write.option("header", "true").csv("/Users/ondrej.machacek/tmp/AllDesc.csv")
-  }
-
-  def writeSummaryScaled(data: DataFrame, fields: Array[String]) = {
-    val vecToArray = udf((xs: linalg.Vector) => xs.toArray)
-    val dfArr = data.withColumn("featuresArr", vecToArray(col("features")))
-
-    val sqlExpr = fields.zipWithIndex.map { case (alias, idx) => col("featuresArr").getItem(idx).as(alias) }
-
-    val scaledDF = dfArr.select(sqlExpr: _*)
-
-    scaledDF.summary().repartition(1).write.option("header", "true").csv("/Users/ondrej.machacek/tmp/AllDescScaled.csv")
-  }
-
-
-
 
   def run() = {
-    val allFields = CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols
-
-    //println(s"${allFields(0)}:::${allFields.tail.mkString(",")}")
-
-    //allFields.foreach(println(_))
+    val allFields = CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols
 
     val dataRaw = dataReader
-      .readData("/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/part-00000-892b3c0f-ad5f-4ab9-aaa9-3c668a3be26d-c000.snappy.parquet")
+      .readData()
       .select("user_id", allFields: _*)
-
-    //dataRaw.printSchema()
 
     val data = doLog(allFields, dataRaw)
 
 
     lazy val (cpxDataVectorised, usageKPIDataVectorised) = getDataVectorised3D(data)
 
-    //lazy val allVectorised = Clustering.vectorise(data, allFields)
+    val allFieldsVectorised =Clustering.vectorise(data,allFields)
 
-    Clustering.printCostAnalysis(5,30,cpxDataVectorised)
-    Clustering.printCostAnalysis(lower = 5, upper = 30, usageKPIDataVectorised)
+    val clusters = do3D(cpxDataVectorised, usageKPIDataVectorised, 10)
 
+    resultWriter.writeClusterData(clusters, dataRaw)
 
+    resultWriter.writeCrossDimensionStats(clusters(DimensionCPX)._1, clusters(DimensionUsage)._1)
 
-    val clusters = do3D(cpxDataVectorised, usageKPIDataVectorised, 20)
-    //println(data.select("cex_tel_per_call_avg").filter("cex_tel_per_call_avg is null").count())
-
-    ResultWriter.writeClusterStats3D(clusters, CXKPIsModel.getModelCols, UsageKPIsModel.getModelCols, "/Users/ondrej.machacek/tmp/ClusterStats.csv")
-
-    ResultWriter.writeClusterData(clusters, dataRaw, "LogOnly")
-
-    val outliersCorrected = correctOutliers(allFields, data)
-
-    val (cpxCorrected, usageCorrected) = getDataVectorised3D(outliersCorrected)
-
-    val clustersOutliers = do3D(cpxCorrected, usageCorrected, 20)
-    ResultWriter.writeClusterStats3D(clustersOutliers, CXKPIsModel.getModelCols, UsageKPIsModel.getModelCols, "/Users/ondrej.machacek/tmp/ClusterStatsWithoutOutliers.csv")
-
-    ResultWriter.writeClusterData(clusters, dataRaw, "LogOutliersCorrected")
-
-    Clustering.printCostAnalysis(5,30,cpxCorrected)
-    Clustering.printCostAnalysis(lower = 5, upper = 30, usageCorrected)
-
-
-    //val scaled = Clustering.scale(allVectorised).select("features")
-
-    //scaled.printSchema()
-
-
-    //scaledDF.show(truncate = false)
-
+    val clusterAll = doAllClustering(allFieldsVectorised, 20)
+    resultWriter.writeClusterData(clusterAll,dataRaw)
 
   }
 

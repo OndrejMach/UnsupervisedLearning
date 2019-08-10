@@ -6,8 +6,8 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 case class Means(meanthp: Double, meandvsum: Double, meancallsum: Double, meandrsum: Double, meanltesum: Double)
 
 //"/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/flowgraph_20190205-0000_20190211-0000__cust_exp_weekly_aggregations"
-class DataReader(implicit spark: SparkSession) extends Logger {
-  def readData(filename: String) : DataFrame = {
+class DataReader(filename: String)(implicit spark: SparkSession) extends Logger {
+  def readData() : DataFrame = {
 
     import spark.implicits._
 

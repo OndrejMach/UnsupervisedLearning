@@ -23,10 +23,12 @@ object Application extends App with Logger {
 
 
   logger.info("Reading data")
-  val reader = new DataReader()
+  val reader = new DataReader("/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/part-00000-892b3c0f-ad5f-4ab9-aaa9-3c668a3be26d-c000.snappy.parquet")
   //val data = reader.readData(inputPath)
   //data.printSchema()
-  val process = new Process(reader)
+
+  val writer = new ResultWriter("/Users/ondrej.machacek/tmp/")
+  val process = new Process(reader, writer)
   process.run()
 
 }

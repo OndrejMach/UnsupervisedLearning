@@ -2,57 +2,18 @@ package com.openbean.bd.unsupervisedlearning
 
 import java.io._
 
-import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsModel, Dimension, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsModel}
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsModel, Dimension, DimensionAll, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsModel}
 import org.apache.spark.ml.clustering.KMeansModel
+import org.apache.spark.ml.linalg
 import org.apache.spark.ml.linalg.{DenseMatrix, DenseVector}
+import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
-//"/Users/ondrej.machacek/tmp/clustersStats.csv"
-//"/Users/ondrej.machacek/tmp/clusterDetails.csv"
-
-object ResultWriter extends Logger {
-
-  def writeCSV(pw: PrintWriter,clusterStats: Seq[ClusterStats]) = {
-    for (i <- 0 to (clusterStats.length-1) ) {
-      pw.write(s"${i};(${clusterStats(i).clusterCenter.toArray.mkString(",")});${clusterStats(i).count}\n")
-    }
-  }
-
-  def writeClusterStats(data: DataFrame, model: KMeansModel, columns: Array[String], filename: String)(implicit spark: SparkSession) = {
-    val stats = Clustering.getClusterStats(data,model.clusterCenters)
-
-    val pw = new PrintWriter(new File(filename))
-    pw.write(s"clusterID;${columns.mkString(",")}; count\n")
-    writeCSV(pw,stats )
-    pw.close()
-
-  }
-  def writeClusterStats3D(clusterData: Map[Dimension,(DataFrame, KMeansModel)],
-                          columnsCpx: Array[String],
-                          columnsUsage: Array[String],
-                          //columnsContract: Array[String],
-                          filename: String)(implicit spark: SparkSession) = {
-
-
-    val cpxClusterStats = Clustering.getClusterStats(clusterData(DimensionCPX)._1,clusterData(DimensionCPX)._2.clusterCenters)
-    val usageClusterStats = Clustering.getClusterStats(clusterData(DimensionUsage)._1,clusterData(DimensionUsage)._2.clusterCenters)
-    //val contractClusterStats = Clustering.getClusterStats(clusterData(DimensionContract)._1,clusterData(DimensionContract)._2.clusterCenters)
-
-    val pw = new PrintWriter(new File(filename))
-    pw.write(s"clusterID;${columnsCpx.mkString(",")}; count\n")
-    writeCSV(pw,cpxClusterStats )
-    pw.write(s"clusterID;${columnsUsage.mkString(",")};count\n")
-    writeCSV(pw,usageClusterStats )
-    //pw.write(s"clusterID;${columnsContract.mkString(",")};count \n")
-    //writeCSV(pw, contractClusterStats)
-
-    pw.close
-  }
-
-  def writeClustersData3D(cpxData: DataFrame,
-                          usageKPIData: DataFrame,
-                          contractData: DataFrame,
-                          filename: String) = {
+class ResultWriter(masterPath: String) extends Logger {
+  def writeCrossDimensionStats(cpxData: DataFrame,
+                               usageKPIData: DataFrame
+                               //contractData: DataFrame,
+                               ) = {
 
     val toJoinU = usageKPIData
       .drop("features")
@@ -60,30 +21,31 @@ object ResultWriter extends Logger {
     val toJoinCPX = cpxData
       .drop("features")
       .withColumnRenamed("prediction", "cluster_id_cpx")
+   /*
     val toJoinContr = contractData
       .drop("features")
       .withColumnRenamed("prediction", "cluster_id_contract")
 
-
+    */
 
     val joined = toJoinU
       .join(toJoinCPX,"user_id")
-      .join(toJoinContr, "user_id")
+     // .join(toJoinContr, "user_id")
       .filter("user_id is not null")
 
 
     joined.printSchema()
 
-    case class ClusterDetail(prediction_usage: Int,prediction_cpx: Int,prediction_contract: Int, count: Long)
+    case class ClusterDetail(prediction_usage: Int,prediction_cpx: Int,/*prediction_contract: Int,*/ count: Long)
 
-    val grouped = joined.select("cluster_id_usage","cluster_id_cpx","cluster_id_contract" )
-      .groupBy("cluster_id_usage","cluster_id_cpx","cluster_id_contract")
+    val grouped = joined.select("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract" */)
+      .groupBy("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract"*/)
       .count()
     //.as[ClusterDetail]
     grouped.show(false)
     //println(grouped.count)
 
-    grouped.coalesce(1).write.option("header","true").mode(SaveMode.Overwrite).csv(filename)
+    grouped.coalesce(1).write.option("header","true").mode(SaveMode.Overwrite).csv(s"${masterPath}/CrossDimensionStats.csv")
   }
 
   def addPCAStats(explained: DenseVector, matrix: DenseMatrix, filename: String) = {
@@ -92,35 +54,67 @@ object ResultWriter extends Logger {
     pw.close()
   }
 
-  def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame, filenameSuffix: String): Unit = {
+  def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame): Unit = {
 
     def aggregated(dim: Dimension, array: Array[String]) : DataFrame = {
-      dataClustered(dim)._1
+     logger.info("Joining cluster data with the original table")
+      val data =  dataClustered(dim)._1
         .select("user_id", "prediction")
-        .join(dataRaw, "user_id")
+
+      val joined = data.join(dataRaw, "user_id")
         .select("prediction", array: _*)
+
+      logger.info("Join DONE")
+
+      joined.summary().show(false)
+
+      logger.info("Aggregating on clusters")
+      val grouped = joined
         .groupBy("prediction").mean(array: _*)
+
+      logger.info("Getting counts")
+      val counts = Clustering.getClusterStats(data)
+
+      logger.info("Joining with counts")
+      grouped.join(counts, "prediction").sort("prediction")
     }
 
-
-    val cpxData = aggregated(DimensionCPX, CXKPIsModel.getModelCols)
-    val usageData = aggregated(DimensionUsage, UsageKPIsModel.getModelCols)
-
-    cpxData
-      .coalesce(1)
-      .write
-      .option("header", "true")
-      .mode(SaveMode.Overwrite)
-      .csv(s"/Users/ondrej.machacek/tmp/CPXCluster${filenameSuffix}.csv")
-
-    usageData
-      .coalesce(1)
-      .write
-      .option("header", "true")
-      .mode(SaveMode.Overwrite)
-      .csv(s"/Users/ondrej.machacek/tmp/UsageCluster${filenameSuffix}.csv")
+    logger.info("Starting preparation for writing cluster data")
+    for {i <- dataClustered.keys} {
+      logger.info(s"Data calculation for dimension ${i.name}")
+      val result = i match {
+        case DimensionCPX => aggregated(DimensionCPX, CXKPIsModel.getModelCols)
+        case DimensionUsage => aggregated(DimensionUsage, UsageKPIsModel.getModelCols)
+        case DimensionAll => aggregated(DimensionAll, CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols)
+      }
+      logger.info("Cluster data ready to be written into a file")
+      //result.summary().show(false)
 
 
+      result
+        .coalesce(1)
+        .write
+        .option("header", "true")
+        .mode(SaveMode.Overwrite)
+        .csv(s"${masterPath}/${i.name}_ClusterMeans.csv")
+      logger.info("Writing cluster data DONE")
+
+    }
+  }
+
+  def writeSummaryRaw(data: DataFrame) = {
+    data.summary().repartition(1).write.option("header", "true").csv(s"${masterPath}/AllDesc.csv")
+  }
+
+  def writeSummaryScaled(data: DataFrame, fields: Array[String]) = {
+    val vecToArray = udf((xs: linalg.Vector) => xs.toArray)
+    val dfArr = data.withColumn("featuresArr", vecToArray(col("features")))
+
+    val sqlExpr = fields.zipWithIndex.map { case (alias, idx) => col("featuresArr").getItem(idx).as(alias) }
+
+    val scaledDF = dfArr.select(sqlExpr: _*)
+
+    scaledDF.summary().repartition(1).write.option("header", "true").csv(s"${masterPath}AllDescScaled.csv")
   }
 
 }
