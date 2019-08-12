@@ -2,7 +2,7 @@ package com.openbean.bd.unsupervisedlearning
 
 import java.io._
 
-import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsModel, Dimension, DimensionAll, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsModel}
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsModel, ContractKPIsModel, Dimension, DimensionAll, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsModel}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.ml.linalg
 import org.apache.spark.ml.linalg.{DenseMatrix, DenseVector}
@@ -11,8 +11,8 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 class ResultWriter(masterPath: String) extends Logger {
   def writeCrossDimensionStats(cpxData: DataFrame,
-                               usageKPIData: DataFrame
-                               //contractData: DataFrame,
+                               usageKPIData: DataFrame,
+                               contractData: DataFrame
                                ) = {
 
     val toJoinU = usageKPIData
@@ -21,25 +21,23 @@ class ResultWriter(masterPath: String) extends Logger {
     val toJoinCPX = cpxData
       .drop("features")
       .withColumnRenamed("prediction", "cluster_id_cpx")
-   /*
     val toJoinContr = contractData
       .drop("features")
       .withColumnRenamed("prediction", "cluster_id_contract")
 
-    */
 
     val joined = toJoinU
       .join(toJoinCPX,"user_id")
-     // .join(toJoinContr, "user_id")
+      .join(toJoinContr, "user_id")
       .filter("user_id is not null")
 
 
     joined.printSchema()
 
-    case class ClusterDetail(prediction_usage: Int,prediction_cpx: Int,/*prediction_contract: Int,*/ count: Long)
+    case class ClusterDetail(prediction_usage: Int,prediction_cpx: Int, prediction_contract: Int, count: Long)
 
-    val grouped = joined.select("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract" */)
-      .groupBy("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract"*/)
+    val grouped = joined.select("cluster_id_usage","cluster_id_cpx","cluster_id_contract" )
+      .groupBy("cluster_id_usage","cluster_id_cpx","cluster_id_contract")
       .count()
     //.as[ClusterDetail]
     grouped.show(false)
@@ -85,7 +83,8 @@ class ResultWriter(masterPath: String) extends Logger {
       val result = i match {
         case DimensionCPX => aggregated(DimensionCPX, CXKPIsModel.getModelCols)
         case DimensionUsage => aggregated(DimensionUsage, UsageKPIsModel.getModelCols)
-        case DimensionAll => aggregated(DimensionAll, CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols)
+        case DimensionContract => aggregated(DimensionContract, ContractKPIsModel.getModelCols)
+        case DimensionAll => aggregated(DimensionAll, CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols)
       }
       logger.info("Cluster data ready to be written into a file")
       //result.summary().show(false)
