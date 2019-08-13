@@ -11,8 +11,8 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 class ResultWriter(masterPath: String) extends Logger {
   def writeCrossDimensionStats(cpxData: DataFrame,
-                               usageKPIData: DataFrame,
-                               contractData: DataFrame
+                               usageKPIData: DataFrame//,
+                              // contractData: DataFrame
                                ) = {
 
     val toJoinU = usageKPIData
@@ -21,14 +21,14 @@ class ResultWriter(masterPath: String) extends Logger {
     val toJoinCPX = cpxData
       .drop("features")
       .withColumnRenamed("prediction", "cluster_id_cpx")
-    val toJoinContr = contractData
+    /* val toJoinContr = contractData
       .drop("features")
-      .withColumnRenamed("prediction", "cluster_id_contract")
+      .withColumnRenamed("prediction", "cluster_id_contract")*/
 
 
     val joined = toJoinU
       .join(toJoinCPX,"user_id")
-      .join(toJoinContr, "user_id")
+     // .join(toJoinContr, "user_id")
       .filter("user_id is not null")
 
 
@@ -36,8 +36,8 @@ class ResultWriter(masterPath: String) extends Logger {
 
     case class ClusterDetail(prediction_usage: Int,prediction_cpx: Int, prediction_contract: Int, count: Long)
 
-    val grouped = joined.select("cluster_id_usage","cluster_id_cpx","cluster_id_contract" )
-      .groupBy("cluster_id_usage","cluster_id_cpx","cluster_id_contract")
+    val grouped = joined.select("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract" */)
+      .groupBy("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract"*/)
       .count()
     //.as[ClusterDetail]
     grouped.show(false)
@@ -81,8 +81,8 @@ class ResultWriter(masterPath: String) extends Logger {
     for {i <- dataClustered.keys} {
       logger.info(s"Data calculation for dimension ${i.name}")
       val result = i match {
-        case DimensionCPX => aggregated(DimensionCPX, CXKPIsModel.getModelCols)
-        case DimensionUsage => aggregated(DimensionUsage, UsageKPIsModel.getModelCols)
+        case DimensionCPX => aggregated(DimensionCPX, CXKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols)
+        case DimensionUsage => aggregated(DimensionUsage, UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols)
         case DimensionContract => aggregated(DimensionContract, ContractKPIsModel.getModelCols)
         case DimensionAll => aggregated(DimensionAll, CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols)
       }
