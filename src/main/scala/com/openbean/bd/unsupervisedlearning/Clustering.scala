@@ -1,14 +1,11 @@
 package com.openbean.bd.unsupervisedlearning
 
 import com.openbean.bd.unsupervisedlearning.supporting.Logger
-import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.ml.clustering.KMeans
+import org.apache.spark.ml.clustering.{KMeans, KMeansModel}
+import org.apache.spark.ml.feature.{OneHotEncoderEstimator, StandardScaler, VectorAssembler}
 import org.apache.spark.ml.linalg.Vector
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions.asc
-import org.apache.spark.ml.clustering.KMeansModel
-import org.apache.spark.ml.feature.OneHotEncoderEstimator
-import org.apache.spark.ml.feature.StandardScaler
 
 case class ClusterStats(id: Int,clusterCenter: Vector, count: Long )
 
@@ -79,7 +76,7 @@ object Clustering extends Logger {
       .setInputCol("features")
       .setOutputCol("scaledFeatures")
       .setWithStd(true)
-      .setWithMean(false)
+      .setWithMean(true)
 
     val scalerModel = scaler.fit(data)
     scalerModel.transform(data).drop("features").withColumnRenamed("scaledFeatures","features")

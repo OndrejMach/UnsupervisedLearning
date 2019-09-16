@@ -1,12 +1,9 @@
 package com.openbean.bd.unsupervisedlearning
 
-import java.io._
-
-import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, CXKPIsModel, ContractKPIsColumns, ContractKPIsModel, Dimension, DimensionAll, DimensionCPX, DimensionContract, DimensionUsage, Logger, UsageKPIsColumns, UsageKPIsModel}
+import com.openbean.bd.unsupervisedlearning.supporting._
 import org.apache.spark.ml.clustering.KMeansModel
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.ml._
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 
 case class Stat(mean: Double, stddev: Double)
@@ -14,10 +11,10 @@ case class Stat(mean: Double, stddev: Double)
 class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark: SparkSession) extends Logger {
 
 
-  def getDataVectorised3D(data: DataFrame): (DataFrame, DataFrame/*, DataFrame*/) = {
-    (Clustering.vectorise(data, CXKPIsModel.getModelCols),
-     // Clustering.vectorise(data,ContractKPIsModel.getModelCols),
-      Clustering.vectorise(data, UsageKPIsModel.getModelCols))
+  def getDataVectorised3D(data: DataFrame): (DataFrame, DataFrame /*, DataFrame*/ ) = {
+    (Clustering.scale(Clustering.vectorise(data, CXKPIsModel.getModelCols)),
+      // Clustering.vectorise(data,ContractKPIsModel.getModelCols),
+      Clustering.scale(Clustering.vectorise(data, UsageKPIsModel.getModelCols)))
   }
 
   private def doClustering(data: DataFrame, clusters: Int) = {
@@ -29,10 +26,10 @@ class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark
   }
 
 
-  private def doClustering3D(cpxData: DataFrame, usageData: DataFrame, /*contractData: DataFrame,*/clusters: Int): Map[Dimension, (DataFrame, KMeansModel)] = {
+  private def doClustering3D(cpxData: DataFrame, usageData: DataFrame, /*contractData: DataFrame,*/ clusters: Int): Map[Dimension, (DataFrame, KMeansModel)] = {
 
     val (cpxClusterModel, cpxClusteredData) = doClustering(cpxData, clusters)
-   // val (contractKPIModel,contractKPIClusteredData) = doClustering(contractData,clusters)
+    // val (contractKPIModel,contractKPIClusteredData) = doClustering(contractData,clusters)
     val (usageKPIModel, usageKPIClusteredData) = doClustering(usageData, clusters)
 
     Map(DimensionCPX -> (cpxClusteredData, cpxClusterModel),
@@ -40,15 +37,15 @@ class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark
       DimensionUsage -> (usageKPIClusteredData, usageKPIModel))
   }
 
-  def doAllClustering(data: DataFrame, clusters: Int) : Map[Dimension, (DataFrame, KMeansModel)] = {
-    val (model,cluster) = doClustering(data, clusters)
-    Map(DimensionAll -> (cluster, model) )
+  def doAllClustering(data: DataFrame, clusters: Int): Map[Dimension, (DataFrame, KMeansModel)] = {
+    val (model, cluster) = doClustering(data, clusters)
+    Map(DimensionAll -> (cluster, model))
   }
 
-  def do3D(cpxDataVectorised: DataFrame, usageKPIDataVectorised: DataFrame,/* contractKPIVectorised: DataFrame,*/ clusters: Int) (implicit spark: SparkSession) = {
+  def do3D(cpxDataVectorised: DataFrame, usageKPIDataVectorised: DataFrame, /* contractKPIVectorised: DataFrame,*/ clusters: Int)(implicit spark: SparkSession) = {
 
 
-    doClustering3D(cpxDataVectorised,/*contractKPIVectorised,*/usageKPIDataVectorised,clusters   )
+    doClustering3D(cpxDataVectorised, /*contractKPIVectorised,*/ usageKPIDataVectorised, clusters)
     //doClustering3D(cpxDataVectorised, usageKPIDataVectorised, clusters)
 
   }
@@ -87,11 +84,15 @@ class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark
     tmp
   }
 
+  //TODO - join vsech clusteru do originalnich dat
+  //TODO - konfigurace
+  //TODO - testy
+
 
   def run() = {
     val allFieldsClustering = CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols
 
-    val allFields = allFieldsClustering ++ ContractKPIsModel.getModelCols
+    val allFields = allFieldsClustering ++ ContractKPIsModel.getModelCols ++ CorrelatedColumns.getRemovedCols
 
     val dataRaw = dataReader
       .readData()
@@ -102,18 +103,18 @@ class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark
     val data = doLog(allFields, dataRaw)
 
 
-    lazy val (cpxDataVectorised,/*contractKPIsVectorised,*/ usageKPIDataVectorised) = getDataVectorised3D(data)
+    lazy val (cpxDataVectorised, /*contractKPIsVectorised,*/ usageKPIDataVectorised) = getDataVectorised3D(data)
 
-    val allFieldsVectorised =Clustering.vectorise(data,allFieldsClustering)
+    val allFieldsVectorised = Clustering.scale(Clustering.vectorise(data, allFieldsClustering))
 
-    val clusters = do3D(cpxDataVectorised, usageKPIDataVectorised/*, contractKPIsVectorised*/,10)
+    val clusters = do3D(cpxDataVectorised, usageKPIDataVectorised /*, contractKPIsVectorised*/ , 10)
 
     resultWriter.writeClusterData(clusters, dataRaw)
 
-    resultWriter.writeCrossDimensionStats(clusters(DimensionCPX)._1, clusters(DimensionUsage)._1/*, clusters(DimensionContract)._1*/)
+    resultWriter.writeCrossDimensionStats(clusters(DimensionCPX)._1, clusters(DimensionUsage)._1 /*, clusters(DimensionContract)._1*/)
 
     val clusterAll = doAllClustering(allFieldsVectorised, 20)
-    resultWriter.writeClusterData(clusterAll,dataRaw)
+    resultWriter.writeClusterData(clusterAll, dataRaw)
 
   }
 

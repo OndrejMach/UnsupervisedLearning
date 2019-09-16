@@ -15,15 +15,16 @@ object CXKPIsColumns extends Enumeration {
 }
 
 object CXKPIsModel {
-  val getModelCols = Array(CXKPIsColumns.cex_tel_per_call_avg.toString,
+  val getModelCols = Array(
+    CXKPIsColumns.cex_tel_per_call_avg.toString,
     CXKPIsColumns.cex_tel_per_call_max.toString,
     CXKPIsColumns.cex_tel_per_sec_avg.toString,
-    CXKPIsColumns.cex_tel_per_sec_max.toString,
+    //CXKPIsColumns.cex_tel_per_sec_max.toString,
     CXKPIsColumns.cex_browse_per_dv_avg.toString,
     CXKPIsColumns.cex_browse_per_dv_max.toString,
     CXKPIsColumns.cex_browse_per_session_avg.toString,
-    CXKPIsColumns.cex_browse_per_session_max.toString,
-    CXKPIsColumns.cex_data_per_dv_avg.toString,
+    //CXKPIsColumns.cex_browse_per_session_max.toString,
+    //CXKPIsColumns.cex_data_per_dv_avg.toString,
     CXKPIsColumns.avg_thp_dl_mbps.toString)
 }
 
@@ -39,12 +40,13 @@ object UsageKPIsColumns extends Enumeration {
 }
 
 object UsageKPIsModel {
-  val getModelCols = Array(UsageKPIsColumns.calls_sum.toString,
+  val getModelCols = Array(
+    UsageKPIsColumns.calls_sum.toString,
     UsageKPIsColumns.data_records_sum.toString,
-    UsageKPIsColumns.LTE_data_records_sum.toString,
+    //UsageKPIsColumns.LTE_data_records_sum.toString,
     UsageKPIsColumns.data_volume_sum.toString,
     UsageKPIsColumns.calls_data_ratio.toString,
-    UsageKPIsColumns.data_sessions.toString,
+    //UsageKPIsColumns.data_sessions.toString,
     UsageKPIsColumns.lte_ratio.toString
   )
 }
@@ -75,4 +77,24 @@ object ContractKPIsModel {
     ContractKPIsColumns.clv123.toString
     //ContractKPIsColumns.high_val_cust.toString
   )
+}
+
+object CXCorrelatedColumns {
+  val getRemovedCols = Array(
+    CXKPIsColumns.cex_tel_per_sec_max.toString,
+    CXKPIsColumns.cex_browse_per_session_max.toString,
+    CXKPIsColumns.cex_data_per_dv_avg.toString
+  )
+}
+
+object UsageCorrelatedColumns {
+  val getRemovedCols = Array(
+    UsageKPIsColumns.LTE_data_records_sum.toString,
+    UsageKPIsColumns.data_sessions.toString
+  )
+}
+
+
+object CorrelatedColumns {
+  val getRemovedCols = CXCorrelatedColumns.getRemovedCols ++ UsageCorrelatedColumns.getRemovedCols
 }

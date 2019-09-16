@@ -23,7 +23,7 @@ object Application extends App with Logger {
 
 
   logger.info("Reading data")
-  val reader = new DataReader("/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/part-00000-892b3c0f-ad5f-4ab9-aaa9-3c668a3be26d-c000.snappy.parquet")
+  val reader = new DataReader("/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/part-00000-de997f18-68ab-4ef2-aae9-3c6e5ffc47b0-c000.snappy.parquet")
   //val data = reader.readData(inputPath)
   //data.printSchema()
 
