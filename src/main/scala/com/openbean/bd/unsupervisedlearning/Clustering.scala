@@ -1,16 +1,29 @@
 package com.openbean.bd.unsupervisedlearning
 
-import com.openbean.bd.unsupervisedlearning.supporting.Logger
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, Logger, UsageKPIsColumns}
 import org.apache.spark.ml.clustering.{KMeans, KMeansModel}
 import org.apache.spark.ml.feature.{OneHotEncoderEstimator, StandardScaler, VectorAssembler}
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.functions.asc
+import org.apache.spark.sql.functions.{asc, col, log}
 
 case class ClusterStats(id: Int,clusterCenter: Vector, count: Long )
 
 
 object Clustering extends Logger {
+  def doLog(fields: Array[String], data: DataFrame): DataFrame = {
+
+    var tmp = data
+    logger.info(s"Transforming to Logarithm")
+
+    for (i <- fields if (!i.equals(CXKPIsColumns.avg_thp_dl_mbps.toString) && !i.equals(UsageKPIsColumns.lte_ratio.toString))) {
+      logger.info(s"Log transformation for ${i}")
+      tmp = tmp.withColumn(i, log(col(i) + 1))
+    }
+    logger.info(s"Log transformation DONE ${tmp.count()}")
+    tmp
+  }
+
   def vectorise(input: DataFrame, valueColumns: Array[String]): DataFrame = {
     val assembler = new VectorAssembler()
       .setInputCols(valueColumns)
