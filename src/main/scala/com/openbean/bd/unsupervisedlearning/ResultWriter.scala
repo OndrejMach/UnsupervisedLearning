@@ -43,7 +43,7 @@ class ResultWriter(crossDimensionalStatsOutput: String, rawSummaryOutput: String
     val grouped = data
       .groupBy(dimensions.head.clusteringColumnName, dimensions.tail.map(_.clusteringColumnName): _*)
       .count()
-    grouped.show(false)
+   // grouped.show(false)
 
 
     writeExcelOrParquet(grouped, crossDimensionalStatsOutput, SaveMode.Overwrite, Some("Cross-cluster-stats"))

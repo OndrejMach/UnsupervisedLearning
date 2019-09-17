@@ -48,12 +48,14 @@ object Clustering extends Logger {
   }
 
   def doKMeans(clusters: Int, dataForClustering: DataFrame ) : KMeansModel = {
-
+    logger.info("K-Means started")
     val kmeans = new KMeans().setK(clusters).setSeed(1L)
     val model = kmeans.fit(dataForClustering)
 
     val WSSSE = model.computeCost(dataForClustering)
-    println(WSSSE)
+    logger.info(s"Clustering cost: ${WSSSE}")
+
+    //println(WSSSE)
     model
 
   }
