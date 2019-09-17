@@ -4,10 +4,7 @@ import com.openbean.bd.unsupervisedlearning.supporting.{Dimension, _}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-
-case class Stat(mean: Double, stddev: Double)
-
-class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark: SparkSession) extends Logger {
+class Process(dataReader: DataReader, resultWriter: Writer)(implicit spark: SparkSession) extends Logger {
 
 
   def getDataVectorised3D(data: DataFrame, columns: Map[Dimension, Array[String]]): Map[Dimension,DataFrame] = {
@@ -39,31 +36,17 @@ class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark
       )
   }
 
-/*
-  def do3D(cpxDataVectorised: DataFrame, usageKPIDataVectorised: DataFrame, allData: DataFrame ,clustersDim: Int, clustersAll: Int)(implicit spark: SparkSession) = {
-
-
-    doClustering3D(cpxDataVectorised, usageKPIDataVectorised, allData,clustersDim,clustersAll)
-
-  }
-
- */
-
   def joinWithClusters(dataRaw: DataFrame,clusters : Map[Dimension, (DataFrame, KMeansModel)]): DataFrame = {
     def join(dimension: DataFrame, rawData: DataFrame, dimensionName: Dimension): DataFrame = {
       val data  =
         dimension
           .select("user_id", "prediction")
-        .withColumnRenamed("prediction", s"prediction_${dimensionName.name}")
+        .withColumnRenamed("prediction", dimensionName.clusteringColumnName)
       rawData.join(data, "user_id")
     }
 
     clusters.foldLeft(dataRaw)((data,dim) => join(dim._2._1, data, dim._1))
   }
-
-
-  //TODO - konfigurace
-  //TODO - testy
 
 
   def run() = {
@@ -88,13 +71,9 @@ class Process(dataReader: DataReader, resultWriter: ResultWriter)(implicit spark
 
     val result = joinWithClusters(dataRaw, clusters)
 
-    result.summary().show(false)
-    //resultWriter.writeClusterData(clusters, dataRaw)
+    resultWriter.writeClusterData(clusters, result)
 
-    //resultWriter.writeCrossDimensionStats(clusters(DimensionCPX)._1, clusters(DimensionUsage)._1 /*, clusters(DimensionContract)._1*/)
-
-    //val clusterAll = doAllClustering(allFieldsVectorised, 20)
-    //resultWriter.writeClusterData(clusterAll, dataRaw)
+    resultWriter.writeCrossDimensionStats(result, Array(DimensionCPX, DimensionUsage))
 
   }
 

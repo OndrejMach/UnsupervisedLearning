@@ -1,6 +1,6 @@
 package com.openbean.bd.unsupervisedlearning
 
-import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, Logger, UsageKPIsColumns}
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, Dimension, Logger, UsageKPIsColumns}
 import org.apache.spark.ml.clustering.{KMeans, KMeansModel}
 import org.apache.spark.ml.feature.{OneHotEncoderEstimator, StandardScaler, VectorAssembler}
 import org.apache.spark.ml.linalg.Vector
@@ -68,20 +68,12 @@ object Clustering extends Logger {
   }
 
 
-  def getClusterStats(clusteredData : DataFrame /*, clusterCenters: Array[Vector]*/) : DataFrame = {
-    //case class Stats2(prediction: Int, count: Long)
-    //withPrediction.printSchema()
-
-    //import spark.implicits._
+  def getClusterStats(clusteredData : DataFrame, dimension: Dimension ) : DataFrame = {
 
     clusteredData
-      .groupBy("prediction")
+      .groupBy(dimension.clusteringColumnName)
       .count().alias("count")
-      .orderBy(asc("prediction"))
-      //.drop("prediction")
-      //.as[Long]
-      //.collect()
-    //for {i <- 0 to (clusterCenters.length-1)} yield {new ClusterStats(i,clusterCenters(i), grouped(i))}
+      .orderBy(asc(dimension.clusteringColumnName))
   }
 
   def scale(data: DataFrame): DataFrame = {

@@ -6,9 +6,12 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 
 case class Means(meanthp: Double, meandvsum: Double, meancallsum: Double, meandrsum: Double, meanltesum: Double)
 
-//"/Users/ondrej.machacek/Projects/TMobile/data/unsupervised/flowgraph_20190205-0000_20190211-0000__cust_exp_weekly_aggregations"
-class DataReader(filename: String)(implicit spark: SparkSession) extends Logger {
-  def readData(): DataFrame = {
+trait DataReader extends Logger{
+  def readData():DataFrame
+}
+
+class DataReaderParquet(filename: String)(implicit spark: SparkSession) extends DataReader {
+  override def readData(): DataFrame = {
 
     import spark.implicits._
 
@@ -20,8 +23,6 @@ class DataReader(filename: String)(implicit spark: SparkSession) extends Logger 
           .otherwise(col(ContractKPIsColumns.clv_agg.toString)))
       .na.fill(0, CXKPIsModel.getModelCols.filter(_.contains("cex")))
 
-    //rawData.columns.foreach(println(_))
-
     val means = rawData
       .select(
         mean(col(CXKPIsColumns.avg_thp_dl_mbps.toString)).alias("meanthp"),
@@ -31,9 +32,6 @@ class DataReader(filename: String)(implicit spark: SparkSession) extends Logger 
         mean(col(UsageKPIsColumns.LTE_data_records_sum.toString)).alias("meanltesum")
       )
       .as[Means].take(1)
-
-    //println(means(0))
-
 
     val nafixed = rawData
       .na.fill(means(0).meanthp, Seq(CXKPIsColumns.avg_thp_dl_mbps.toString))
@@ -53,8 +51,6 @@ class DataReader(filename: String)(implicit spark: SparkSession) extends Logger 
       UsageKPIsColumns.data_volume_sum.toString)
     )
 
-    //nafixed.na.
-
     val ret = nafixed
       .withColumn(UsageKPIsColumns.calls_data_ratio.toString, col(UsageKPIsColumns.calls_sum.toString).divide(col(UsageKPIsColumns.data_records_sum.toString) + col(UsageKPIsColumns.calls_sum.toString)))
       .withColumn(UsageKPIsColumns.data_sessions.toString, col(UsageKPIsColumns.data_volume_sum.toString).divide(col(UsageKPIsColumns.data_records_sum.toString)))
@@ -72,21 +68,8 @@ class DataReader(filename: String)(implicit spark: SparkSession) extends Logger 
       .withColumn(ContractKPIsColumns.kuendigung3_12_3.toString, when(col(ContractKPIsColumns.kuendigung3_12.toString).equalTo(lit(3)), 1).otherwise(lit(0)))
       .withColumn(ContractKPIsColumns.kuendigung3_12_13.toString, when(col(ContractKPIsColumns.kuendigung3_12.toString).equalTo(lit(13)), 1).otherwise(lit(0)))
 
-
-
-    //ret.select(UsageKPIsColumns.calls_data_ratio.toString).filter(s"${UsageKPIsColumns.calls_data_ratio.toString} is null").show(false)
-    //ret.select(UsageKPIsColumns.data_sessions.toString).filter(s"${UsageKPIsColumns.data_sessions.toString} is null").show(false)
-    //ret.select(ContractKPIsColumns.kuendigung3_12_13.toString).distinct().show(false)
-    //ret.select(ContractKPIsColumns.kuendigung3_12_3.toString).distinct().show(false)
-    //ret.select(ContractKPIsColumns.kuendigung3_12.toString).distinct().show(false)
-
-    ret.summary().show(false)
+    //ret.summary().show(false)
 
     ret
-    //data.printSchema()
-
-    //data.select(CXKPIsColumns.avg_thp_dl_mbps.toString).distinct().show()
-
-    //data
   }
 }

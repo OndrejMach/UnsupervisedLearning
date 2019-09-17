@@ -1,93 +1,70 @@
 package com.openbean.bd.unsupervisedlearning
 
-import java.io._
-
 import com.openbean.bd.unsupervisedlearning.supporting._
 import org.apache.spark.ml.clustering.KMeansModel
-import org.apache.spark.ml.linalg
-import org.apache.spark.ml.linalg.{DenseMatrix, DenseVector}
-import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.functions.{col, udf}
+import org.apache.spark.sql.{DataFrame, SaveMode}
 
-class ResultWriter(masterPath: String) extends Logger {
-  def writeCrossDimensionStats(cpxData: DataFrame,
-                               usageKPIData: DataFrame//,
-                              // contractData: DataFrame
-                               ) = {
+trait Writer extends Logger {
+  def writeCrossDimensionStats(data: DataFrame, dimensions: Array[Dimension]) : Unit
+  def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame): Unit
+  def writeSummaryRaw(data: DataFrame): Unit
+  def writeResult(data: DataFrame): Unit
+}
 
-    val toJoinU = usageKPIData
-      .drop("features")
-      .withColumnRenamed("prediction", "cluster_id_usage")
-    val toJoinCPX = cpxData
-      .drop("features")
-      .withColumnRenamed("prediction", "cluster_id_cpx")
-    /* val toJoinContr = contractData
-      .drop("features")
-      .withColumnRenamed("prediction", "cluster_id_contract")*/
+class ResultWriter(crossDimensionalStatsOutput: String, rawSummaryOutput: String, clusterStatsOutput: String, resultFile: String, mode: String) extends Writer {
 
 
-    val joined = toJoinU
-      .join(toJoinCPX,"user_id")
-     // .join(toJoinContr, "user_id")
-      .filter("user_id is not null")
+  private def writeExcelOrParquet(data: DataFrame, filename: String, saveMode: SaveMode, sheetName: Option[String] = None ) = {
+
+    mode match {
+      case "excel" =>
+        data
+          .coalesce(1)
+          .write
+          .format("com.crealytics.spark.excel")
+          .option("sheetName", sheetName.getOrElse("Default"))
+          .option("useHeader", "true")
+          .option("dateFormat", "yy-mmm-d")
+          .option("timestampFormat", "mm-dd-yyyy hh:mm:ss")
+          .mode(saveMode)
+          .save(filename)
+      case "parquet" =>
+        data
+          .coalesce(1)
+          .write
+          .mode(saveMode)
+          .parquet(filename)
+    }
+  }
 
 
-    joined.printSchema()
-
-    case class ClusterDetail(prediction_usage: Int,prediction_cpx: Int, prediction_contract: Int, count: Long)
-
-    val grouped = joined.select("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract" */)
-      .groupBy("cluster_id_usage","cluster_id_cpx"/*,"cluster_id_contract"*/)
+  override def writeCrossDimensionStats(data: DataFrame, dimensions: Array[Dimension]
+                              ) = {
+    val grouped = data
+      .groupBy(dimensions.head.clusteringColumnName, dimensions.tail.map(_.clusteringColumnName): _*)
       .count()
-    //.as[ClusterDetail]
     grouped.show(false)
-    //println(grouped.count)
 
-    grouped
-      .coalesce(1)
-      .write
-      .format("com.crealytics.spark.excel")
-      .option("sheetName",  s"Cross-cluster-stats")
-      .option("useHeader", "true")
-      .option("dateFormat", "yy-mmm-d")
-      .option("timestampFormat", "mm-dd-yyyy hh:mm:ss")
-      .mode("append")
-      .save("/Users/ondrej.machacek/tmp/testexcel.xlsx")
-      //.write
-      //.option("header","true")
-      //.mode(SaveMode.Overwrite)
-      //.csv(s"${masterPath}/CrossDimensionStats.csv")
+
+    writeExcelOrParquet(grouped, crossDimensionalStatsOutput, SaveMode.Overwrite, Some("Cross-cluster-stats"))
   }
 
-  def addPCAStats(explained: DenseVector, matrix: DenseMatrix, filename: String) = {
-    val pw = new PrintWriter(new File(filename))
-    pw.append(s"Explained variance:\n${explained}\nPC:\n${matrix}")
-    pw.close()
-  }
+  override def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame): Unit = {
 
-  def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame): Unit = {
-
-    def aggregated(dim: Dimension, array: Array[String]) : DataFrame = {
-     logger.info("Joining cluster data with the original table")
-      val data =  dataClustered(dim)._1
-        .select("user_id", "prediction")
-
-      val joined = data.join(dataRaw, "user_id")
-        .select("prediction", array: _*)
-
-      logger.info("Join DONE")
-
-      joined.summary().show(false)
-
-      logger.info("Aggregating on clusters")
-      val grouped = joined
-        .groupBy("prediction").mean(array: _*)
+    def aggregated(dim: Dimension, array: Array[String]): DataFrame = {
+      logger.info(s"Aggregating on cluster ${dim.name} and calculating means")
+      val grouped = dataRaw
+        .select(dim.clusteringColumnName, array: _*)
+        .groupBy(dim.clusteringColumnName)
+        .mean(array: _*)
 
       logger.info("Getting counts")
-      val counts = Clustering.getClusterStats(data)
+      val counts = Clustering.getClusterStats(dataRaw, dim)
 
-      logger.info("Joining with counts")
-      grouped.join(counts, "prediction").sort("prediction")
+      logger.info("Joining meand with counts")
+      grouped
+        .join(counts, dim.clusteringColumnName)
+        .sort(dim.clusteringColumnName)
     }
 
     logger.info("Starting preparation for writing cluster data")
@@ -95,69 +72,29 @@ class ResultWriter(masterPath: String) extends Logger {
       logger.info(s"Data calculation for dimension ${i.name}")
       val result = i match {
         case DimensionCPX => aggregated(DimensionCPX, CXKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols ++ CXCorrelatedColumns.getRemovedCols)
-        case DimensionUsage => aggregated(DimensionUsage, UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols++ UsageCorrelatedColumns.getRemovedCols)
+        case DimensionUsage => aggregated(DimensionUsage, UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols ++ UsageCorrelatedColumns.getRemovedCols)
         case DimensionContract => aggregated(DimensionContract, ContractKPIsModel.getModelCols)
-        case DimensionAll => aggregated(DimensionAll, CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols++ CorrelatedColumns.getRemovedCols)
+        case DimensionAll => aggregated(DimensionAll, CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols ++ ContractKPIsModel.getModelCols ++ CorrelatedColumns.getRemovedCols)
       }
-      logger.info("Cluster data ready to be written into a file")
-      //result.summary().show(false)
+      logger.info(s"Cluster data for ${i.name} ready to be written into a file")
 
+      writeExcelOrParquet(result,clusterStatsOutput, SaveMode.Append,Some(s"Cluster ${i.name}"))
 
-      result
-        .coalesce(1)
-        .write
-        .format("com.crealytics.spark.excel")
-        .option("sheetName", s"Cluster ${i.name}")
-        .option("useHeader", "true")
-        .option("dateFormat", "yy-mmm-d")
-        .option("timestampFormat", "mm-dd-yyyy hh:mm:ss")
-        .mode("append")
-        .save("/Users/ondrej.machacek/tmp/testexcel.xlsx")
-
-      //.write
-        //.option("header", "true")
-        //.mode(SaveMode.Overwrite)
-        //.csv(s"${masterPath}/${i.name}_ClusterMeans.csv")
       logger.info("Writing cluster data DONE")
 
     }
   }
 
-  def writeSummaryRaw(data: DataFrame) = {
-    data
-      .summary()
-      .repartition(1)
-      .write
-      .format("com.crealytics.spark.excel")
-      .option("sheetName", "Summary All Fields")
-      .option("useHeader", "true")
-      .option("dateFormat", "yy-mmm-d")
-      .option("timestampFormat", "mm-dd-yyyy hh:mm:ss")
-      .mode("append")
-      .save("/Users/ondrej.machacek/tmpp/testexcel.xlsx")
+  override def writeSummaryRaw(data: DataFrame) = {
+    writeExcelOrParquet(data.summary(), rawSummaryOutput,SaveMode.Overwrite,Some("Summary All Fields" ))
   }
 
-  def writeSummaryScaled(data: DataFrame, fields: Array[String]) = {
-    val vecToArray = udf((xs: linalg.Vector) => xs.toArray)
-    val dfArr = data.withColumn("featuresArr", vecToArray(col("features")))
-
-    val sqlExpr = fields.zipWithIndex.map { case (alias, idx) => col("featuresArr").getItem(idx).as(alias) }
-
-    val scaledDF = dfArr.select(sqlExpr: _*)
-
-    scaledDF
-      .summary()
-      .repartition(1)
+  override def writeResult(data: DataFrame) = {
+    data
+      .coalesce(1)
       .write
-      .format("com.crealytics.spark.excel")
-      .option("sheetName", "Summary All Fields")
-      .option("useHeader", "true")
-      .option("dateFormat", "yy-mmm-d")
-      .option("timestampFormat", "mm-dd-yyyy hh:mm:ss")
-      .mode("append")
-      .save("/Users/ondrej.machacek/tmp/testexcel.xlsx")
-    //.write.option("header", "true")
-      //.csv(s"${masterPath}AllDescScaled.csv")
+      .mode(SaveMode.Overwrite)
+      .parquet(resultFile)
   }
 
 }

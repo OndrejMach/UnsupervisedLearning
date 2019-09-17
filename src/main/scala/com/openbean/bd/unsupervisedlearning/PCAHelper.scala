@@ -13,10 +13,7 @@ object PCAHelper extends Logger {
       .setK(k)
       .fit(data)
 
-    //println(pca.explainedVariance)
-    //pca.pc.rowIter.foreach(println(_))
     val result = pca.transform(data)
-    //result.select("pcaFeatures").show(false)
 
     (result.drop("features").withColumnRenamed("pcaFeatures", "features"),pca.explainedVariance, pca.pc)
   }
