@@ -1,11 +1,25 @@
-plugins {
-    id 'java'
-}
-
 group 'UnsupervisedLearning'
 version '1.0-SNAPSHOT'
 
 apply plugin: 'scala'
+apply plugin: 'java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+//plugins {
+//    id 'java'
+//}
+shadowJar {
+    zip64 true
+}
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.1'
+    }
+}
 
 sourceCompatibility = 1.8
 
