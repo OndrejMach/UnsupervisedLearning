@@ -2,6 +2,7 @@ package com.openbean.bd.unsupervisedlearning
 
 import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, CXKPIsModel, ContractKPIsColumns, Logger, UsageKPIsColumns}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 case class Means(meanthp: Double, meandvsum: Double, meancallsum: Double, meandrsum: Double, meanltesum: Double)
@@ -23,13 +24,15 @@ class DataReaderParquet(filename: String)(implicit spark: SparkSession) extends 
           .otherwise(col(ContractKPIsColumns.clv_agg.toString)))
       .na.fill(0, CXKPIsModel.getModelCols.filter(_.contains("cex")))
 
+    //rawData.printSchema()
+
     val means = rawData
       .select(
-        mean(col(CXKPIsColumns.avg_thp_dl_mbps.toString)).alias("meanthp"),
-        mean(col(UsageKPIsColumns.data_volume_sum.toString)).alias("meandvsum"),
-        mean(col(UsageKPIsColumns.calls_sum.toString)).alias("meancallsum"),
-        mean(col(UsageKPIsColumns.data_records_sum.toString)).alias("meandrsum"),
-        mean(col(UsageKPIsColumns.LTE_data_records_sum.toString)).alias("meanltesum")
+        mean(col(CXKPIsColumns.avg_thp_dl_mbps.toString).cast(DoubleType)).alias("meanthp"),
+        mean(col(UsageKPIsColumns.data_volume_sum.toString).cast(DoubleType)).alias("meandvsum"),
+        mean(col(UsageKPIsColumns.calls_sum.toString).cast(DoubleType)).alias("meancallsum"),
+        mean(col(UsageKPIsColumns.data_records_sum.toString).cast(DoubleType)).alias("meandrsum"),
+        mean(col(UsageKPIsColumns.LTE_data_records_sum.toString).cast(DoubleType)).alias("meanltesum")
       )
       .as[Means].take(1)
 

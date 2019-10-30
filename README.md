@@ -7,13 +7,18 @@ This project implements K-Means algorithm for clustering of usage data. Probable
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
 ### Configuration
 
-Configuration JSON file can be found in __src/main/resources/application.conf__. There is basically just a couple of parameters to set:
-* **sparkAppName** and **sparkMaster** for setting up the application on the cluster or in the local mode.
-* **inputDataLocation**, **rawSummaryFile**, **clusterStatsFile**, **crossDimensionalStatsFile** and **outputFile** for setting paths where files are either read from or written to.
-* **writeMode** to specify whether results shall be stored as excel sheets (value 'excel') or as parquet files ('parquet')
+Configuration JSON file can be found in __src/main/resources/application.conf__. There is basically just a couple of parameters to set (don't forget **.value** at the end):
+* **sparkAppName.value** and **sparkMaster.value** for setting up the application on the cluster or in the local mode.
+* **inputDataLocation.value**, **rawSummaryFile.value**, **clusterStatsFile.value**, **crossDimensionalStatsFile.value** and **outputFile.value** for setting paths where files are either read from or written to.
+* **writeMode.value** to specify whether results shall be stored as excel sheets (value 'excel') or as parquet files ('parquet')
 
-parameters can be set in the mentioned file, or via environment variables (for example settings.sparkAppName = 'blabla') or as JVM parameters when executed.
+parameters can be set in the mentioned file, or via environment variables or as JVM parameters when executed.
 
+when setting configuration parameters from environment variables you need to replace **.** with **_** and change all the letters to **upper case**. 
+Example:
+```
+export SETTINGS_SPARKAPPNAME_VALUE="KMEANS "
+```
 ### Prerequisites
 
 First thing you need to do is to build a Jar file which is submitted to a cluster. 

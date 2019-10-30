@@ -13,8 +13,9 @@ object Application extends App with Logger {
   logger.info("Creating Spark session")
 
   implicit val spark = SparkSession.builder()
-    .appName(setup.settings.sparkAppName.get)
+    //.appName(setup.settings.sparkAppName.get)
     .master(setup.settings.sparkMaster.get)
+    .config("spark.app.name",setup.settings.sparkAppName.get)
     .config("spark.executor.memory", "6g")
     .config("spark.driver.memory", "10g")
     .config("spark.driver.maxResultSize", "10g")
