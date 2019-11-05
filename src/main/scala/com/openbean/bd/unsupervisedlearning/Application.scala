@@ -34,8 +34,17 @@ object Application extends App with Logger {
   val reader = new DataReaderParquet(setup.settings.inputDataLocation.get)
   logger.info("Preparing writer")
   val writer = new ResultWriter(setup.settings.crossDimensionalStatsFile.get, setup.settings.rawSummaryFile.get, setup.settings.clusterStatsFile.get, setup.settings.outputFile.get, setup.settings.writeMode.get)
+  logger.info("preparing model persistence functionality")
+  val modelPersistenceWriter = new ModelPersistenceWriter(setup.settings.modelAll.get, setup.settings.modelCPX.get, setup.settings.modelUsage.get )
+  val modelPersistenceReader = new ModelPersistenceReader(setup.settings.modelAll.get, setup.settings.modelCPX.get, setup.settings.modelUsage.get )
+
+  //logger.info("preparing model persistence functionality")
+
   logger.info("Processing started")
-  val process = new Process(reader, writer)
+  val process = new ProcessTraining(reader, writer,modelPersistenceWriter )
   process.run()
+
+  val processTransformation= new ProcessTransformation(reader, writer, modelPersistenceReader)
+  processTransformation.run()
   logger.info("Processing finished successfully")
 }

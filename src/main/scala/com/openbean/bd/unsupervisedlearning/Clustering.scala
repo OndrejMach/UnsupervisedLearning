@@ -1,6 +1,6 @@
 package com.openbean.bd.unsupervisedlearning
 
-import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, Dimension, Logger, UsageKPIsColumns}
+import com.openbean.bd.unsupervisedlearning.supporting.{CXKPIsColumns, Dimension, DimensionAll, DimensionCPX, DimensionUsage, Logger, UsageKPIsColumns}
 import org.apache.spark.ml.clustering.{KMeans, KMeansModel}
 import org.apache.spark.ml.feature.{OneHotEncoderEstimator, StandardScaler, VectorAssembler}
 import org.apache.spark.ml.linalg.Vector
@@ -11,6 +11,17 @@ case class ClusterStats(id: Int,clusterCenter: Vector, count: Long )
 
 
 object Clustering extends Logger {
+
+
+  def getDataVectorised3D(data: DataFrame, columns: Map[Dimension, Array[String]]): Map[Dimension, DataFrame] = {
+
+    Map(DimensionCPX -> Clustering.scale(Clustering.vectorise(data, columns(DimensionCPX))),
+      DimensionUsage -> Clustering.scale(Clustering.vectorise(data, columns(DimensionUsage))),
+      DimensionAll -> Clustering.scale(Clustering.vectorise(data, columns(DimensionAll)))
+    )
+  }
+
+
   def doLog(fields: Array[String], data: DataFrame): DataFrame = {
 
     var tmp = data

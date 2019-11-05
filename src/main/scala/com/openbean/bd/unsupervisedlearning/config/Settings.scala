@@ -9,7 +9,10 @@ case class Settings(sparkAppName: Option[String]
                     , clusterStatsFile: Option[String]
                     , crossDimensionalStatsFile: Option[String]
                     , outputFile: Option[String]
-                    , writeMode: Option[String]) {
+                    , writeMode: Option[String]
+                    , modelCPX: Option[String]
+                    , modelUsage: Option[String]
+                    , modelAll: Option[String]) {
 
   def isAllDefined: Boolean = {
     this.sparkAppName.isDefined && this.sparkAppName.get.nonEmpty &&
@@ -19,7 +22,10 @@ case class Settings(sparkAppName: Option[String]
       this.clusterStatsFile.isDefined && this.clusterStatsFile.get.nonEmpty &&
       this.crossDimensionalStatsFile.isDefined && this.crossDimensionalStatsFile.get.nonEmpty &&
       this.outputFile.isDefined && this.outputFile.get.nonEmpty &&
-      this.writeMode.isDefined && this.writeMode.get.nonEmpty
+      this.writeMode.isDefined && this.writeMode.get.nonEmpty &&
+      this.modelAll.isDefined && this.modelAll.get.nonEmpty &&
+      this.modelCPX.isDefined && this.modelCPX.get.nonEmpty &&
+      this.modelUsage.isDefined && this.modelUsage.get.nonEmpty
   }
 
   def listParams() = {

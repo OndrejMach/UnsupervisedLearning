@@ -6,7 +6,7 @@ import org.apache.spark.sql.{DataFrame, SaveMode}
 
 trait Writer extends Logger {
   def writeCrossDimensionStats(data: DataFrame, dimensions: Array[Dimension]) : Unit
-  def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame): Unit
+  def writeClusterData(dataClustered: Map[Dimension, DataFrame], dataRaw: DataFrame): Unit
   def writeSummaryRaw(data: DataFrame): Unit
   def writeResult(data: DataFrame): Unit
 }
@@ -49,7 +49,7 @@ class ResultWriter(crossDimensionalStatsOutput: String, rawSummaryOutput: String
     writeExcelOrParquet(grouped, crossDimensionalStatsOutput, SaveMode.Overwrite, Some("Cross-cluster-stats"))
   }
 
-  override def writeClusterData(dataClustered: Map[Dimension, (DataFrame, KMeansModel)], dataRaw: DataFrame): Unit = {
+  override def writeClusterData(dataClustered: Map[Dimension, DataFrame], dataRaw: DataFrame): Unit = {
 
     def aggregated(dim: Dimension, array: Array[String]): DataFrame = {
       logger.info(s"Aggregating on cluster ${dim.name} and calculating means")
