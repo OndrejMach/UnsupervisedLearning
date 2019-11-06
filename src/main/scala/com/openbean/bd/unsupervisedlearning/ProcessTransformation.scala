@@ -68,7 +68,7 @@ class ProcessTransformation(dataReader: DataReader, resultWriter: Writer, modelP
     logger.info("Writing cross dimensional stats")
     resultWriter.writeCrossDimensionStats(result, Array(DimensionCPX, DimensionUsage))
     logger.info("Adding cluster info to the original data")
-    resultWriter.writeResult(result,)
+    resultWriter.writeResult(result,sampleRate)
   }
 
 }
