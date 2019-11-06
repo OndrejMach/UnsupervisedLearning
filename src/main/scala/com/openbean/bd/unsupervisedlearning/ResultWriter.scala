@@ -96,7 +96,8 @@ class ResultWriter(crossDimensionalStatsOutput: String, rawSummaryOutput: String
       .coalesce(1)
       .write
       .mode(SaveMode.Overwrite)
-      .parquet(resultFile)
+      .option("header","true")
+      .csv(resultFile)
   }
 
 }
