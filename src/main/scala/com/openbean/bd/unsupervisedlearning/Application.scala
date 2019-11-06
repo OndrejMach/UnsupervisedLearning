@@ -15,11 +15,11 @@ object Application extends App with Logger {
   implicit val spark = SparkSession.builder()
     //.appName(setup.settings.sparkAppName.get)
     .master(setup.settings.sparkMaster.get)
-    .config("spark.app.name",setup.settings.sparkAppName.get)
+    .config("spark.app.name", setup.settings.sparkAppName.get)
     .config("spark.executor.memory", "6g")
     .config("spark.driver.memory", "10g")
     .config("spark.driver.maxResultSize", "10g")
-    .config("spark.executor.JavaOptions","-XX:+UseG1GC" )
+    .config("spark.executor.JavaOptions", "-XX:+UseG1GC")
     .config("spark.executor.extraJavaOptions", "-XX:InitiatingHeapOccupancyPercent=35")
     .config("spark.dynamicAllocation.enabled", "true")
     .getOrCreate()
@@ -34,17 +34,25 @@ object Application extends App with Logger {
   val reader = new DataReaderParquet(setup.settings.inputDataLocation.get)
   logger.info("Preparing writer")
   val writer = new ResultWriter(setup.settings.crossDimensionalStatsFile.get, setup.settings.rawSummaryFile.get, setup.settings.clusterStatsFile.get, setup.settings.outputFile.get, setup.settings.writeMode.get)
-  logger.info("preparing model persistence functionality")
-  val modelPersistenceWriter = new ModelPersistenceWriter(setup.settings.modelAll.get, setup.settings.modelCPX.get, setup.settings.modelUsage.get )
-  val modelPersistenceReader = new ModelPersistenceReader(setup.settings.modelAll.get, setup.settings.modelCPX.get, setup.settings.modelUsage.get )
 
-  //logger.info("preparing model persistence functionality")
+
+  val processor = args(0) match {
+    case "training" => {
+      logger.info("preparing model persistence functionality")
+      val modelPersistenceWriter = new ModelPersistenceWriter(setup.settings.modelPersistence.get)
+      logger.info("creating data processor")
+      new ProcessTraining(reader, writer, modelPersistenceWriter)
+    }
+    case "transform" => {
+      logger.info("preparing model persistence functionality")
+      val modelPersistenceReader = new ModelPersistenceReader(setup.settings.modelPersistence.get)
+      logger.info("creating data processor")
+      new ProcessTransformation(reader, writer, modelPersistenceReader, setup.settings.sampleRate.get)
+    }
+  }
+
 
   logger.info("Processing started")
-  val process = new ProcessTraining(reader, writer,modelPersistenceWriter )
-  process.run()
-
-  val processTransformation= new ProcessTransformation(reader, writer, modelPersistenceReader)
-  processTransformation.run()
+  processor.run()
   logger.info("Processing finished successfully")
 }

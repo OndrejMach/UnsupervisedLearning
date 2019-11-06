@@ -8,7 +8,7 @@ trait Writer extends Logger {
   def writeCrossDimensionStats(data: DataFrame, dimensions: Array[Dimension]) : Unit
   def writeClusterData(dataClustered: Map[Dimension, DataFrame], dataRaw: DataFrame): Unit
   def writeSummaryRaw(data: DataFrame): Unit
-  def writeResult(data: DataFrame): Unit
+  def writeResult(data: DataFrame,sampleRate: Double): Unit
 }
 
 class ResultWriter(crossDimensionalStatsOutput: String, rawSummaryOutput: String, clusterStatsOutput: String, resultFile: String, mode: String) extends Writer {
@@ -89,8 +89,10 @@ class ResultWriter(crossDimensionalStatsOutput: String, rawSummaryOutput: String
     writeExcelOrParquet(data.summary(), rawSummaryOutput,SaveMode.Overwrite,Some("Summary All Fields" ))
   }
 
-  override def writeResult(data: DataFrame) = {
+  override def writeResult(data: DataFrame, sampleRate: Double) = {
     data
+      .select("user_id", DimensionAll.clusteringColumnName, DimensionCPX.clusteringColumnName, DimensionUsage.clusteringColumnName)
+      .sample(sampleRate)
       .coalesce(1)
       .write
       .mode(SaveMode.Overwrite)

@@ -19,7 +19,7 @@ object ParamValidator extends Logger{
       logger.error(s"Input folder is empty, no data to process.. ${path}")
       return false
     }
-    return true
+    true
   }
 
   private def pathExists(path: String)(implicit sparkSession: SparkSession): Boolean = {

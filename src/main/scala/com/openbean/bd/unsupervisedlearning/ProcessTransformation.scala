@@ -4,7 +4,7 @@ import com.openbean.bd.unsupervisedlearning.supporting.{Dimension, _}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-class ProcessTransformation(dataReader: DataReader, resultWriter: Writer, modelPersistenceReader: ModelPersistenceReader)(implicit spark: SparkSession) extends Logger {
+class ProcessTransformation(dataReader: DataReader, resultWriter: Writer, modelPersistenceReader: ModelPersistenceReader, sampleRate: Double)(implicit spark: SparkSession) extends Processor(dataReader) {
 
 
   private def doTransformation(data: DataFrame, cluster: KMeansModel) = {
@@ -32,11 +32,6 @@ class ProcessTransformation(dataReader: DataReader, resultWriter: Writer, modelP
     )
   }
 
-
-
-
-
-
   def joinWithClusters(dataRaw: DataFrame, clusters: Map[Dimension, DataFrame]): DataFrame = {
     def join(dimension: DataFrame, rawData: DataFrame, dimensionName: Dimension): DataFrame = {
       val data =
@@ -50,16 +45,7 @@ class ProcessTransformation(dataReader: DataReader, resultWriter: Writer, modelP
   }
 
 
-  def run() = {
-    val columnsForClustering = Map(DimensionAll -> (CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols),
-      DimensionCPX -> CXKPIsModel.getModelCols,
-      DimensionUsage -> UsageKPIsModel.getModelCols)
-
-    val allFields = columnsForClustering(DimensionAll) ++ ContractKPIsModel.getModelCols ++ CorrelatedColumns.getRemovedCols
-
-    val dataRaw = dataReader
-      .readData()
-      .select("user_id", allFields: _*)
+  override def run() = {
 
     resultWriter.writeSummaryRaw(dataRaw)
     logger.info("Transforming data using Log function")
@@ -70,11 +56,10 @@ class ProcessTransformation(dataReader: DataReader, resultWriter: Writer, modelP
     logger.info("loading models")
     val models = modelPersistenceReader.loadModels()
 
-    val clusters = doClustering3D(vectorisedDimensions,models)
+    val clusters = doClustering3D(vectorisedDimensions, models)
 
     //logger.info("Preparing for storing cluster's configuration")
     //modelPersistenceWriter.writeModels(clusters(DimensionAll), clusters(DimensionCPX), clusters(DimensionUsage))
-
 
     logger.info("Joining cluster data with original data")
     val result = joinWithClusters(dataRaw, clusters)
@@ -83,9 +68,7 @@ class ProcessTransformation(dataReader: DataReader, resultWriter: Writer, modelP
     logger.info("Writing cross dimensional stats")
     resultWriter.writeCrossDimensionStats(result, Array(DimensionCPX, DimensionUsage))
     logger.info("Adding cluster info to the original data")
-    resultWriter.writeResult(result)
-
-
+    resultWriter.writeResult(result,)
   }
 
 }

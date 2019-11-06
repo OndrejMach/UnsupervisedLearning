@@ -4,10 +4,10 @@ import com.openbean.bd.unsupervisedlearning.supporting.{Dimension, _}
 import org.apache.spark.ml.clustering.KMeansModel
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-class ProcessTraining(dataReader: DataReader, resultWriter: Writer, modelPersistenceWriter: ModelPersistenceWriter)(implicit spark: SparkSession) extends Logger {
+class ProcessTraining(dataReader: DataReader, resultWriter: Writer, modelPersistenceWriter: ModelPersistenceWriter)(implicit spark: SparkSession) extends Processor(dataReader) {
 
 
-  private def doClustering(data: DataFrame, clusters: Int) = {
+  private def doClustering(data: DataFrame, clusters: Int) : KMeansModel = {
     logger.info(s"Doing clustering with clusters #${clusters}")
     val model = Clustering.doKMeans(clusters, data)
 
@@ -59,16 +59,7 @@ class ProcessTraining(dataReader: DataReader, resultWriter: Writer, modelPersist
   }
 
 
-  def run() = {
-    val columnsForClustering = Map(DimensionAll -> (CXKPIsModel.getModelCols ++ UsageKPIsModel.getModelCols),
-      DimensionCPX -> CXKPIsModel.getModelCols,
-      DimensionUsage -> UsageKPIsModel.getModelCols)
-
-    val allFields = columnsForClustering(DimensionAll) ++ ContractKPIsModel.getModelCols ++ CorrelatedColumns.getRemovedCols
-
-    val dataRaw = dataReader
-      .readData()
-      .select("user_id", allFields: _*)
+  override def run(): Unit = {
 
     resultWriter.writeSummaryRaw(dataRaw)
     logger.info("Transforming data using Log function")
@@ -81,17 +72,6 @@ class ProcessTraining(dataReader: DataReader, resultWriter: Writer, modelPersist
     logger.info("Preparing for storing cluster's configuration")
     modelPersistenceWriter.writeModels(clusters(DimensionAll), clusters(DimensionCPX), clusters(DimensionUsage))
 
-    /*
-    logger.info("Joining cluster data with original data")
-    val result = joinWithClusters(dataRaw, clusters)
-    logger.info("Writing cluster data")
-    resultWriter.writeClusterData(clusters, result)
-    logger.info("Writing cross dimensional stats")
-    resultWriter.writeCrossDimensionStats(result, Array(DimensionCPX, DimensionUsage))
-    logger.info("Adding cluster info to the original data")
-    resultWriter.writeResult(result)
-
-     */
   }
 
 }

@@ -16,9 +16,8 @@ class Setup {
       , crossDimensionalStatsFile = Option(serviceConf.envOrElseConfig("settings.crossDimensionalStatsFile.value"))
       , outputFile = Option(serviceConf.envOrElseConfig("settings.outputFile.value"))
       , writeMode = Option(serviceConf.envOrElseConfig("settings.writeMode.value"))
-      , modelAll = Option(serviceConf.envOrElseConfig("settings.modelPersistenceAll.value"))
-      , modelCPX = Option(serviceConf.envOrElseConfig("settings.modelPersistenceCPX.value"))
-      , modelUsage = Option(serviceConf.envOrElseConfig("settings.modelPersistenceUsage.value"))
+      , modelPersistence = Option(serviceConf.envOrElseConfig("settings.modelPersistence.value"))
+      , sampleRate = Option(serviceConf.envOrElseConfig("settings.sampleRate.value").toDouble)
     )
   }
 }
