@@ -6,7 +6,7 @@ This project implements K-Means algorithm for clustering of usage data. Probable
 
 These instructions will explain how to build, configure and deploy solution on a cluster. Application is can be executed in two modes:
 * **training** input data is used for preparing KMeans models which are stored on a filesystem - as a side product application also stores Summary file of an input data.
-* **transformatio** application loads pre-trained models, transforms input data and generates desired output. 
+* **transformation** application loads pre-trained models, transforms input data and generates desired output. 
 
 to switch between these two modes commandline parameters are used; 'training' for the training regime and 'transform' for the transformation regime.
 Training mode shall be used ad-hoc when you need to re-train KMeans models, transform mode is the one for regularly running pipeline.
@@ -56,7 +56,7 @@ spark-submit \
   --deploy-mode client \
   --conf <key>=<value> \
   ... # other options \
-   UnsupervisedLearning-1.0-SNAPSHOT-all.jar training
+   UnsupervisedLearning-1.0-SNAPSHOT-all.jar transform
 ```
 
 ## Authors
